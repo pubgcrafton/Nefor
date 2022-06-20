@@ -1,4 +1,4 @@
-name: hikka
+name: nino
 services:
   worker:
     public: true

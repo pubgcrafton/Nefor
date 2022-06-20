@@ -467,7 +467,7 @@ class Hikka:
                     connection=self.conn,
                     proxy=self.proxy,
                     connection_retries=None,
-                    device_model="Hikka",
+                    device_model="Nino",
                 )
 
                 client.start(phone)
@@ -507,7 +507,7 @@ class Hikka:
                     connection=self.conn,
                     proxy=self.proxy,
                     connection_retries=None,
-                    device_model="Hikka",
+                    device_model="Nino",
                 )
 
                 client.start(phone=raise_auth if self.web else lambda: input("Phone: "))
@@ -587,7 +587,7 @@ class Hikka:
                     else ""
                 )
                 logging.info(
-                    f"🌘 Hikka {'.'.join(list(map(str, list(__version__))))} started\n"
+                    f"😺 Nino {'.'.join(list(map(str, list(__version__))))} started\n"
                     f"🔏 GitHub commit SHA: {build[:7]} ({upd})\n"
                     f"{web_url}"
                     f"{_platform}"

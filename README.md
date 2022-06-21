@@ -18,10 +18,8 @@
 
 <b>Script installation:</b>
 Simply run this command out of <b>root</b>:
-<code>. <(wget -qO- https://hikariatama.ru/get_hikka)</code>
-
 <b>Manual installation:</b>
-<code>apt update && apt install git libcairo2 -y && git clone https://github.com/hikariatama/Hikka && cd Hikka && pip install -r requirements.txt && python3 -m hikka</code>
+<code>apt update && apt install git libcairo2 -y && git clone https://github.com/NinoZOOM/Nino && cd Nino && pip install -r requirements.txt && python3 -m nino</code>
 
 
 <hr>

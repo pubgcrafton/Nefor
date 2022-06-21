@@ -247,9 +247,8 @@ class TestMod(loader.Module):
                                 "args": (False, 30),
                             },
                             {
-                                "text": "ℹ️ Info",
-                                "callback": self.logscmd,
-                                "args": (False, 20),
+                                "text": "ℹ️ Ping",
+                                "callback": self.pingcmd,
                             },
                         ],
                         [
@@ -265,7 +264,6 @@ class TestMod(loader.Module):
                             },
                         ],
                         [{"text": "🚫 Cancel", "action": "close"}],
-                        [{"photo": "https://imgur.com/9xuJQxi"}],
                     ],
                     message=message,
                 ):

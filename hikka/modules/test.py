@@ -265,6 +265,7 @@ class TestMod(loader.Module):
                             },
                         ],
                         [{"text": "🚫 Cancel", "action": "close"}],
+                        [{"photo": "https://imgur.com/9xuJQxi"}],
                     ],
                     message=message,
                 ):

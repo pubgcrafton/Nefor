@@ -159,9 +159,9 @@ class Database(dict):
             self._assets, _ = await utils.asset_channel(
                 self._client,
                 "nino-assets",
-                "🌐 Your Hikka assets will be stored here",
+                "🌐 Your Nino assets will be stored here",
                 archive=True,
-                avatar="https://imgur.com/8eh3ozg",
+                avatar="https://github.com/NinoZOOM/assets/raw/main/Nino-assets.png",
             )
         except ChannelsTooMuchError:
             self._assets = None

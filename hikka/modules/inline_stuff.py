@@ -110,7 +110,7 @@ class InlineStuffMod(loader.Module):
 
                     return True
 
-    async def ch_hikka_botcmd(self, message: Message):
+    async def reusernamebotcmd(self, message: Message):
         """<username> - Change your Hikka inline bot username"""
         args = utils.get_args_raw(message).strip("@")
         if (

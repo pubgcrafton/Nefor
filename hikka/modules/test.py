@@ -230,40 +230,47 @@ class TestMod(loader.Module):
                     reply_markup=[
                         [
                             {
-                                "text": "🚨 Critical",
+                                "text": "▪️ Critical",
                                 "callback": self.logscmd,
                                 "args": (False, 50),
                             },
+                        ],
+                        [
                             {
-                                "text": "🚫 Error",
+                                "text": "▪️ Error",
                                 "callback": self.logscmd,
                                 "args": (False, 40),
                             },
                         ],
                         [
                             {
-                                "text": "⚠️ Warning",
+                                "text": "▪️ Warning",
                                 "callback": self.logscmd,
                                 "args": (False, 30),
-                            },
-                            {
-                                "text": "ℹ️ Ping",
-                                "callback": self.pingcmd,
                             },
                         ],
                         [
                             {
-                                "text": "🧑‍💻 Debug",
+                                "text": "▪️ Info",
+                                "callback": self.logscmd,
+                                "args": (False, 20),
+                            },
+                        ],
+                        [
+                            {
+                                "text": "▪️ Debug",
                                 "callback": self.logscmd,
                                 "args": (False, 10),
                             },
+                        ],
+                        [
                             {
-                                "text": "👁 All",
+                                "text": "▪️ All",
                                 "callback": self.logscmd,
                                 "args": (False, 0),
                             },
                         ],
-                        [{"text": "🚫 Cancel", "action": "close"}],
+                        [{"text": "▫️ Cancel", "action": "close"}],
                     ],
                     message=message,
                 ):

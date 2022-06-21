@@ -17,13 +17,13 @@ from ..inline.types import InlineCall
 
 logger = logging.getLogger(__name__)
 imgs = [
-    "https://pa1.narvii.com/6644/16e88ec137d2ad2583937e7909b6a166c70f3f2a_hq.gif",
-    "https://c.tenor.com/O3qIam1dAQQAAAAC/hug-cuddle.gif",
-    "https://pa1.narvii.com/6853/8efac13a077dac28e6a500a5dd2a7f97dec668fd_hq.gif",
-    "https://static.tumblr.com/ef1af4bfc7f5a5be30a24539d536e1ce/cehtffd/k3Hpiifhs/tumblr_static_tumblr_static__focused_v3.gif",
-    "https://i.gifer.com/W9IO.gif",
-    "https://c.tenor.com/6w7XKLSqFEUAAAAC/anime-hug.gif",
-    "https://i2.wp.com/metanorn.net/wp-content/uploads/2011/08/NS3-04b.gif",
+    "https://siasky.net/_AydMH2r41XBCQBMlZsIK3-cBf2EBwAM4Ue7vbkG0XnzoA",
+    "https://siasky.net/_AydMH2r41XBCQBMlZsIK3-cBf2EBwAM4Ue7vbkG0XnzoA",
+    "https://siasky.net/_AydMH2r41XBCQBMlZsIK3-cBf2EBwAM4Ue7vbkG0XnzoA",
+    "https://siasky.net/_AydMH2r41XBCQBMlZsIK3-cBf2EBwAM4Ue7vbkG0XnzoA",
+    "https://siasky.net/_AydMH2r41XBCQBMlZsIK3-cBf2EBwAM4Ue7vbkG0XnzoA",
+    "https://siasky.net/_AydMH2r41XBCQBMlZsIK3-cBf2EBwAM4Ue7vbkG0XnzoA",
+    "https://siasky.net/_AydMH2r41XBCQBMlZsIK3-cBf2EBwAM4Ue7vbkG0XnzoA",
 ]
 
 TEXT = """😺🇬🇧 <b>Hello.</b> You've just installed <b>Nino</b> userbot.
@@ -39,20 +39,24 @@ TEXT = """😺🇬🇧 <b>Hello.</b> You've just installed <b>Nino</b> userbot.
 ▫️ @morisummermods
 ▫️ @cakestwix_mods
 
-🌐 Поменяй язык на русский
+🌐 Поменяй язык на русский <code>.setlang ru</code>
 """
 
 
-TEXT_RU = """😺🇷🇺 <b>Привет.</b> Твой юзербот <b>Nino</b> установлен.
+TEXT_RU = """😊 <b>Мы рады</b> что вы установили нашего бота <b>Nino</b>.
 
 ❓ <b>Нужна помощь?</b> Вступай в наш чат поддержки. Мы помогаем <b>всем</b>.
 
-📼 <b>Официальные источники модулей:</b>
+▪️ <b>Официальные источники модулей:</b>
 ▫️ @nino_mods
 ▫️ @umodules
 ▫️ <code>.dlmod</code>
 
-✅ <b>Доверенные разработчики модулей:</b>
+🧑‍🎤 Модератор: @the_farkhodov
+🧑‍🎤 Канал: @ninoall
+🧑‍🎤 Чат помощи: @nino_talks
+
+▪️ <b>Также ты можешь найти модули тут:</b>
 ▫️ @morisummermods
 ▫️ @cakestwix_mods
 """

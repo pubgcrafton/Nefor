@@ -70,7 +70,7 @@ class HikkaBackupMod(loader.Module):
             "🌐 Your database backups will appear there",
             silent=True,
             archive=True,
-            avatar="https://imgur.com/3sb1uu8",
+            avatar="https://github.com/NinoZOOM/assets/raw/main/Nino-backups.png",
             _folder="nino",
         )
 

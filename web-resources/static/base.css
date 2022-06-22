@@ -127,7 +127,7 @@ body {
 }
 
 .bg {
-    background: url(https://github.com/NinoZOOM/assets/raw/main/Nino-web-background.png);
+    background: url(https://github.com/NinoZOOM/assets/blob/main/Nino-web.png);
     background-repeat: no-repeat;
     background-size: contain;
     width: 80vw;
@@ -136,6 +136,10 @@ body {
     z-index: 1;
     background-position: center;
     display: none;
+    animation: floating 5s infinite ease-in-out;
+    filter: hue-rotate(286deg);
+
+    transition: filter .25s cubic-bezier(0, .77, 0, .68);
 }
 
 .mountains {

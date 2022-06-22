@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 photo = io.BytesIO(
     requests.get(
-        "https://imgur.com/OO0yZ1l"
+        "https://github.com/NinoZOOM/assets/raw/main/Nino-bot.png"
     ).content
 )
 photo.name = "avatar.png"

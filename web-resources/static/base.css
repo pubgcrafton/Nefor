@@ -136,7 +136,6 @@ body {
     z-index: 1;
     background-position: center;
     display: none;
-    animation: floating 5s infinite ease-in-out;
     filter: hue-rotate(286deg);
 
     transition: filter .25s cubic-bezier(0, .77, 0, .68);

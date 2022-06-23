@@ -139,7 +139,7 @@ class UpdaterMod(loader.Module):
                             "callback": self.inline_restart,
                         },
                         {"text": self.strings("cancel"), "action": "close"},
-                    ],
+                    ], **{"photo": "https://i.imgur.com/4RKo8pY.jpeg},
                 )
             ):
                 raise

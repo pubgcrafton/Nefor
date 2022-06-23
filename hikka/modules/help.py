@@ -49,7 +49,7 @@ class HelpMod(loader.Module):
         "single_mod_header": "🌑 <b>{}</b>:",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 Нет описания",
-        "all_header": "🌐 <b>{} модулей доступно, {} скрыто:</b>",
+        "all_header": "⭐ <b>{} модулей доступно, {} скрыто:</b>",
         "mod_tmpl": "\n{} <code>{}</code>",
         "first_cmd_tmpl": ": [ {}",
         "cmd_tmpl": " | {}",
@@ -358,39 +358,3 @@ class HelpMod(loader.Module):
             message,
             f"{reply}\n{''.join(core_)}{''.join(plain_)}{''.join(inline_)}{no_commands_}{partial_load}",
         )
-
-    async def supportcmd(self, message):
-        """Joins the support Hikka chat"""
-        if await self.allmodules.check_security(
-            message,
-            security.OWNER | security.SUDO,
-        ):
-            await self._client(JoinChannelRequest("https://t.me/hikka_talks"))
-
-            try:
-                await self.inline.form(
-                    self.strings("joined"),
-                    reply_markup=[
-                        [{"text": "👩‍💼 Chat", "url": "https://t.me/hikka_talks"}]
-                    ],
-                    ttl=10,
-                    message=message,
-                )
-            except Exception:
-                await utils.answer(message, self.strings("joined"))
-        else:
-            try:
-                await self.inline.form(
-                    self.strings("join"),
-                    reply_markup=[
-                        [{"text": "👩‍💼 Chat", "url": "https://t.me/hikka_talks"}]
-                    ],
-                    ttl=10,
-                    message=message,
-                )
-            except Exception:
-                await utils.answer(message, self.strings("join"))
-
-    async def client_ready(self, client, db):
-        self._client = client
-        self._db = db

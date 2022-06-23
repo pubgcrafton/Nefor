@@ -136,7 +136,7 @@ class LoaderMod(loader.Module):
         "provide_module": "<b>⚠️ Укажи модуль для загрузки</b>",
         "bad_unicode": "<b>🚫 Неверная кодировка модуля</b>",
         "load_failed": "<b>🚫 Загрузка не увенчалась успехом. Смотри логи.</b>",
-        "loaded": "<b>🔭 Модуль </b><code>{}</code>{}<b> загружен {}</b>{}{}{}{}{}",
+        "loaded": "<b>⭐ Модуль </b><code>{}</code>{}<b> загружен {}</b>{}{}{}{}{}",
         "no_class": "<b>А что выгружать то?</b>",
         "unloaded": "<b>🧹 Модуль {} выгружен.</b>",
         "not_unloaded": "<b>🚫 Модуль не выгружен.</b>",
@@ -454,7 +454,7 @@ class LoaderMod(loader.Module):
         ):
             if message.file:
                 await message.edit("")
-                message = await message.respond("🌘")
+                message = await message.respond("▫️")
 
             if await self.inline.form(
                 self.strings("module_fs"),

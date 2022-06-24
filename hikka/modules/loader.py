@@ -136,7 +136,7 @@ class LoaderMod(loader.Module):
         "provide_module": "<b>⚠️ Укажи модуль для загрузки</b>",
         "bad_unicode": "<b>🚫 Неверная кодировка модуля</b>",
         "load_failed": "<b>🚫 Загрузка не увенчалась успехом. Смотри логи.</b>",
-        "loaded": "<b>⭐ Модуль </b><code>{}</code>{}<b> загружен {}</b>{}{}{}{}{}",
+        "loaded": "<b>⭐ Модуль успешно загружен</b><code>{}</code>\n⭐ Версия{}<b>\n {}</b>",
         "no_class": "<b>А что выгружать то?</b>",
         "unloaded": "<b>🧹 Модуль {} выгружен.</b>",
         "not_unloaded": "<b>🚫 Модуль не выгружен.</b>",
@@ -741,7 +741,7 @@ class LoaderMod(loader.Module):
         modhelp = ""
 
         if instance.__doc__:
-            modhelp += f"<i>\nℹ️ {utils.escape_html(inspect.getdoc(instance))}</i>\n"
+            modhelp += f"<i>\n⭐ {utils.escape_html(inspect.getdoc(instance))}</i>\n"
 
         subscribe = ""
         subscribe_markup = None

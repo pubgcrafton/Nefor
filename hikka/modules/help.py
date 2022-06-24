@@ -49,16 +49,16 @@ class HelpMod(loader.Module):
         "single_mod_header": "🌑 <b>{}</b>:",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 Нет описания",
-        "all_header": "⭐ <b>{} модулей доступно, {} скрыто:</b>",
+        "all_header": "🇯🇵 <b>{} модулей доступно, {} скрыто:</b>",
         "mod_tmpl": "\n{} <code>{}</code>",
-        "first_cmd_tmpl": ": [ {}",
-        "cmd_tmpl": " | {}",
+        "first_cmd_tmpl": ": [ <code>{}</code>",
+        "cmd_tmpl": " | <code>{}</code>",
         "no_mod": "🚫 <b>Укажи модуль(-и), которые нужно скрыть</b>",
         "hidden_shown": "🌐 <b>{} модулей скрыто, {} модулей показано:</b>\n{}\n{}",
-        "ihandler": "\n🎹 <code>{}</code> {}",
+        "ihandler": "\n🔳 <code>{}</code> <code>{}</code>",
         "undoc_ihandler": "🦥 Нет описания",
-        "joined": "🌘 <b>Вступил в</b> <a href='https://t.me/hikka_talks'>чат помощи</a>",
-        "join": "🌘 <b>Вступи в</b> <a href='https://t.me/hikka_talks'>чат помощи</a>",
+        "joined": "🌘 <b>Вступил в</b> <a href='https://t.me/Nino_talks'>чат помощи</a>",
+        "join": "🌘 <b>Вступи в</b> <a href='https://t.me/Nino_talks'>чат помощи</a>",
         "_cmd_doc_helphide": "<модуль(-и)> - Скрывает модуль(-и) из помощи\n*Разделяй имена модулей пробелами",
         "_cmd_doc_help": "[модуль] [-f] - Показывает помощь",
         "_cmd_doc_support": "Вступает в чат помощи Hikka",
@@ -83,7 +83,7 @@ class HelpMod(loader.Module):
             ),
             loader.ConfigValue(
                 "plain_emoji",
-                "▫️",
+                "▪️",
                 lambda: "Plain module bullet",
                 validator=loader.validators.String(length=1),
             ),
@@ -325,13 +325,13 @@ class HelpMod(loader.Module):
 
             for cmd in icommands:
                 if first:
-                    tmp += self.strings("first_cmd_tmpl").format(f"🎹 {cmd}")
+                    tmp += self.strings("first_cmd_tmpl").format(f"🔳 {cmd}")
                     first = False
                 else:
-                    tmp += self.strings("cmd_tmpl").format(f"🎹 {cmd}")
+                    tmp += self.strings("cmd_tmpl").format(f"🔳 {cmd}")
 
             if commands or icommands:
-                tmp += " )"
+                tmp += " ]"
                 if core:
                     core_ += [tmp]
                 elif inline:

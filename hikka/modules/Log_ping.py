@@ -45,8 +45,8 @@ class TestMod(loader.Module):
         "name": "Tester",
         "set_loglevel": "🚫 <b>Please specify verbosity as an integer or string</b>",
         "no_logs": "ℹ️ <b>You don't have any logs at verbosity {}.</b>",
-        "logs_filename": "hikka-logs.txt",
-        "logs_caption": "🌘 <b>Hikka logs with verbosity </b><code>{}</code>\n\n👩‍🎤 <b>Hikka version: {}.{}.{}</b>{}\n⏱ <b>Uptime: {}</b>\n<b>{}</b>\n\n<b>{}</b>\n\n<b>{} NoNick</b>\n<b>{} Grep</b>\n<b>{} InlineLogs</b>",
+        "logs_filename": "nino-logs.txt",
+        "logs_caption": "🌘 <b>Nino logs with verbosity </b><code>{}</code>\n\n👩‍🎤 <b>Hikka version: {}.{}.{}</b>{}\n⏱ <b>Uptime: {}</b>\n<b>{}</b>\n\n<b>{}</b>\n\n<b>{} NoNick</b>\n<b>{} Grep</b>\n<b>{} InlineLogs</b>",
         "suspend_invalid_time": "🚫 <b>Invalid time to suspend</b>",
         "suspended": "🥶 <b>Bot suspended for</b> <code>{}</code> <b>seconds</b>",
         "results_ping": "⏱ <b>Response time:</b> <code>{}</code> <b>ms</b>\n👩‍💼 <b>Uptime: {}</b>",
@@ -69,7 +69,7 @@ class TestMod(loader.Module):
         "set_loglevel": "🚫 <b>Укажи уровень логов числом или строкой</b>",
         "no_logs": "ℹ️ <b>У тебя нет логов уровня {}.</b>",
         "logs_filename": "nino-logs.txt",
-        "logs_caption": "▫️ <b>Логи Nino уровня </b><code>{}</code>\n\n▫️ <b>Версия Nino: {}.{}.{}</b>{}\n⏱ <b>Uptime: {}</b>\n<b>{}</b>\n\n<b>{}</b>\n\n<b>{} NoNick</b>\n<b>{} Grep</b>\n<b>{} InlineLogs</b>",
+        "logs_caption": "▫️ <b>Логи Nino </b><code>{}</code>\n\n▫️ <b>Версия Nino: {}.{}.{}</b>{}\n▫️ <b>Uptime: {}</b>\n<b>{}</b>\n\n<b>{}</b>\n\n<b>{} NoNick</b>\n<b>{} Grep</b>\n<b>{} InlineLogs</b>",
         "database_unlocked": "🚫 База скомпрометирована",
         "database_locked": "✅ База защищена",
         "bad_module": "🚫 <b>Модуль не найден</b>",
@@ -309,11 +309,11 @@ class TestMod(loader.Module):
                     "text": self.strings("confidential").format(named_lvl),
                     "reply_markup": [
                         {
-                            "text": "📤 Send anyway",
+                            "text": "▫️ Send anyway",
                             "callback": self.logscmd,
                             "args": [True, lvl],
                         },
-                        {"text": "🚫 Cancel", "action": "close"},
+                        {"text": "▪️ Cancel", "action": "close"},
                     ],
                 }
                 if isinstance(message, Message):
@@ -389,9 +389,9 @@ class TestMod(loader.Module):
             self.strings(
                 f"database_{'un' if self._db.get(main.__name__, 'enable_db_eval', False) else ''}locked"
             ),
-            "✅" if self._db.get(main.__name__, "no_nickname", False) else "🚫",
-            "✅" if self._db.get(main.__name__, "grep", False) else "🚫",
-            "✅" if self._db.get(main.__name__, "inlinelogs", False) else "🚫",
+            "▫️" if self._db.get(main.__name__, "no_nickname", False) else "▪️",
+            "▫️" if self._db.get(main.__name__, "grep", False) else "▪️",
+            "▫️" if self._db.get(main.__name__, "inlinelogs", False) else "▪️",
         )
 
         if getattr(message, "out", True):
@@ -426,7 +426,7 @@ class TestMod(loader.Module):
     async def pingcmd(self, message: Message):
         """Test your userbot ping"""
         start = time.perf_counter_ns()
-        message = await utils.answer(message, "<code>🐻 Nofin...</code>")
+        message = await utils.answer(message, "<code>🧑‍🎤 Nofin...</code>")
         await utils.answer(
             message,
             self.strings("results_ping").format(

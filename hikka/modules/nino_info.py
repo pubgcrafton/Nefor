@@ -33,6 +33,7 @@ class NinoInfoMod(loader.Module):
         "version": "Version",
         "build": "Build",
         "prefix": "Prefix",
+        "nino_plat": "Platform",
         "send_info": "Send userbot info",
         "description": "ℹ This will not compromise any sensitive info",
         "up-to-date": "😌 Up-to-date",
@@ -47,6 +48,7 @@ class NinoInfoMod(loader.Module):
         "version": "Версия",
         "build": "Сборка",
         "prefix": "Префикс",
+        "nino_plat": "Хост",
         "send_info": "Отправить информацию о юзерботе",
         "description": "ℹ Это не раскроет никакой личной информации",
         "_ihandle_doc_info": "Отправить информацию о юзерботе",
@@ -115,11 +117,11 @@ class NinoInfoMod(loader.Module):
             if self.config["custom_message"] and self.config["custom_message"] != "no"
             else (
                 "<b>🇯🇵 Nino - Userbot</b>\n"
-                f'<b>◽ {self.strings("owner")}: </b>[ {me} ]\n\n'
-                f"<b>◽ {self.strings('version')}: </b>[ {version} {build} ]\n"
+                f'<b>◽ {self.strings("owner")}: </b><u>[ {me} ]</u>\n\n'
+                f"<b>◽ {self.strings('version')}: </b><u>[ {version} {build} ]</u>\n"
                 f"<b>{upd}</b>\n\n"
-                f"<b>◾ {self.strings('prefix')}: </b>{prefix}\n"
-                f"<b>[ {platform} ]</b>\n"
+                f"<b>◾ {self.strings('prefix')}: </b><u>{prefix}</u>\n"
+                f"<b>◾ {self.strings('nino_plat')}:</b> <u>[ {platform} ]</u>\n"
             )
         )
 

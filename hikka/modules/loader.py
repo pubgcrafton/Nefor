@@ -533,8 +533,8 @@ class LoaderMod(loader.Module):
                 await utils.answer(message, self.strings("inline_init_failed"))
             return
 
-        if re.search(r"# ?scope: ?hikka_min", doc):
-            ver = re.search(r"# ?scope: ?hikka_min ((\d+\.){2}\d+)", doc).group(1)
+        if re.search(r"# ?scope: ?nink_min", doc):
+            ver = re.search(r"# ?scope: ?nino_min ((\d+\.){2}\d+)", doc).group(1)
             ver_ = tuple(map(int, ver.split(".")))
             if main.__version__ < ver_:
                 if isinstance(message, Message):
@@ -743,7 +743,7 @@ class LoaderMod(loader.Module):
         modhelp = ""
 
         if instance.__doc__:
-            modhelp += f"<i>\nℹ️ {utils.escape_html(inspect.getdoc(instance))}</i>\n"
+            modhelp += f"<i>\n▫️ {utils.escape_html(inspect.getdoc(instance))}</i>\n"
 
         subscribe = ""
         subscribe_markup = None

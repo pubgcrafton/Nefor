@@ -10,8 +10,8 @@
 <hr>
 <h2><img src="https://github.com/hikariatama/assets/raw/master/1326-command-window-line-flat.webp" height="54" align="middle"> Installation</h2>
 
-<a href="https://cloud.okteto.com/#/deploy?repository=https://github.com/NinoZOOM/Nino"><img src="https://github.com/NinoZOOM/assets/raw/main/DEPLOY-OKTETO.png" height="70"></a>
-<a href="https://heroku.com/deploy?template=https://github.com/NinoZOOM/Nino"><img src="https://github.com/NinoZOOM/assets/raw/main/DEPLOY-HEROKU.png" height="70"></a>
+<a href="https://cloud.okteto.com/#/deploy?repository=https://github.com/NinoZOOM/Nino"><img src="https://github.com/NinoZOOM/assets/raw/main/DEPLOY-OKTETO.png" height="60"></a>
+<a href="https://heroku.com/deploy?template=https://github.com/NinoZOOM/Nino"><img src="https://github.com/NinoZOOM/assets/raw/main/DEPLOY-HEROKU.png" height="60"></a>
 
 <b>⚠️ Okteto now bans userbots, so it's not recommended to install Nino there!</b>
 

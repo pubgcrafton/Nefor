@@ -67,11 +67,11 @@ class HikkaBackupMod(loader.Module):
         self._backup_channel, _ = await utils.asset_channel(
             self._client,
             "nino-backups",
-            "🌐 Your database backups will appear there",
+            "🕓 Your database backups will appear there",
             silent=True,
             archive=True,
             avatar="https://github.com/NinoZOOM/assets/raw/main/Nino-backups.png",
-            _folder="nino",
+            _folder="Nino",
         )
 
         self.handler.start()

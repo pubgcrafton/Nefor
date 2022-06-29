@@ -1,12 +1,3 @@
-<a href="https://deepsource.io/gh/ninoZOOM/Nino/?ref=repository-badge"><img src="https://deepsource.io/gh/hikariatama/Hikka.svg/?label=active+issues&show_trend=true&token=IPVI_QX-cSuQSVeVl8cb5PLt" alt="DeepSource"></a>
-<a href="https://deepsource.io/gh/NinoZOOM/Nino/?ref=repository-badge"><img src="https://deepsource.io/gh/hikariatama/Hikka.svg/?label=resolved+issues&show_trend=true&token=IPVI_QX-cSuQSVeVl8cb5PLt" alt="DeepSource"></a><br>
-<a href="https://www.codacy.com/gh/NinoZOOM/Nino/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=hikariatama/Hikka&amp;utm_campaign=Badge_Grade"><img src="https://app.codacy.com/project/badge/Grade/97e3ea868f9344a5aa6e4d874f83db14"/></a>
-<a href="#"><img src="https://img.shields.io/github/languages/code-size/NinoZOOM/Nino"/></a>
-<a href="#"><img src="https://img.shields.io/github/issues-raw/NinoZOOM/Nink"/></a>
-<a href="#"><img src="https://img.shields.io/github/license/NinoZOOM/Jink"/></a>
-<a href="#"><img src="https://img.shields.io/github/commit-activity/m/NinoZOOM/Nino"/></a>
-<a href="#"><img src="https://img.shields.io/github/forks/NinoZOOM/Nino?style=flat"/></a>
-<a href="#"><img src="https://img.shields.io/github/stars/NinoEZ/Nino"/></a>
 <hr>
 <h2><img src="https://github.com/hikariatama/assets/raw/master/1326-command-window-line-flat.webp" height="54" align="middle"> Installation</h2>
 

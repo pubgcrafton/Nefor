@@ -62,7 +62,7 @@ class Form(InlineUnit):
         mime_type: Optional[str] = None,
         video: Optional[str] = None,
         location: Optional[str] = None,
-        audio: Optional[str] = None,
+        audio: Optional[Union[dict, str]] = None,
         silent: Optional[bool] = False,
     ) -> Union[InlineMessage, bool]:
         """
@@ -90,7 +90,7 @@ class Form(InlineUnit):
         :param location: Attach a map point to the form. List/tuple must be supplied (latitude, longitude)
                          Example: (55.749931, 48.742371)
                          ⚠️ If you pass this parameter, you'll need to pass empty string to `text` ⚠️
-        :param audio: Attach a audio to the form. URL must be supplied
+        :param audio: Attach a audio to the form. Dict or URL must be supplied
         :param silent: Whether the form must be sent silently (w/o "Loading inline form..." message)
         :return: If form is sent, returns :obj:`InlineMessage`, otherwise returns `False`
         """
@@ -150,7 +150,14 @@ class Form(InlineUnit):
             logger.error("Invalid type for `video`")
             return False
 
-        if audio and (not isinstance(audio, str) or not utils.check_url(audio)):
+        if isinstance(audio, str):
+            audio = {"url": audio}
+
+        if audio and (
+            not isinstance(audio, dict)
+            or "url" not in audio
+            or not utils.check_url(audio["url"])
+        ):
             logger.error("Invalid type for `audio`")
             return False
 
@@ -241,17 +248,17 @@ class Form(InlineUnit):
             )
         except ChatSendInlineForbiddenError:
             await answer("🚫 <b>You can't send inline units in this chat</b>")
-        except Exception as e:
+        except Exception:
             logger.exception("Can't send form")
 
             if not self._db.get(main.__name__, "inlinelogs", True):
-                msg = f"<b>🚫 Form invoke failed! More info in logs</b>"
+                msg = "<b>🚫 Form invoke failed! More info in logs</b>"
             else:
                 exc = traceback.format_exc()
                 # Remove `Traceback (most recent call last):`
                 exc = "\n".join(exc.splitlines()[1:])
                 msg = (
-                    f"<b>🚫 Form invoke failed!</b>\n\n"
+                    "<b>🚫 Form invoke failed!</b>\n\n"
                     f"<b>🧾 Logs:</b>\n<code>{exc}</code>"
                 )
 
@@ -349,7 +356,8 @@ class Form(InlineUnit):
                             form["uid"],
                         ),
                     )
-                ]
+                ],
+                cache_time=0,
             )
         elif "gif" in form:
             await inline_query.answer(
@@ -365,7 +373,8 @@ class Form(InlineUnit):
                             form["uid"],
                         ),
                     )
-                ]
+                ],
+                cache_time=0,
             )
         elif "video" in form:
             await inline_query.answer(
@@ -383,7 +392,8 @@ class Form(InlineUnit):
                             form["uid"],
                         ),
                     )
-                ]
+                ],
+                cache_time=0,
             )
         elif "file" in form:
             await inline_query.answer(
@@ -400,7 +410,8 @@ class Form(InlineUnit):
                             form["uid"],
                         ),
                     )
-                ]
+                ],
+                cache_time=0,
             )
         elif "location" in form:
             await inline_query.answer(
@@ -414,22 +425,26 @@ class Form(InlineUnit):
                             form["uid"],
                         ),
                     )
-                ]
+                ],
+                cache_time=0,
             )
         elif "audio" in form:
             await inline_query.answer(
                 [
                     InlineQueryResultAudio(
                         id=utils.rand(20),
-                        audio_url=form["audio"],
+                        audio_url=form["audio"]["url"],
                         caption=form.get("text"),
                         parse_mode="HTML",
-                        title="Hikka",
+                        title=form["audio"].get("title", "Hikka"),
+                        performer=form["audio"].get("performer"),
+                        audio_duration=form["audio"].get("duration"),
                         reply_markup=self.generate_markup(
                             form["uid"],
                         ),
                     )
-                ]
+                ],
+                cache_time=0,
             )
         else:
             await inline_query.answer(

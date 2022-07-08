@@ -1,13 +1,14 @@
 import asyncio
+import contextlib
+import copy
 import functools
 import logging
 import time
-from types import FunctionType
+import traceback
 from typing import List, Optional, Union
 
 from aiogram.types import (
     CallbackQuery,
-    InlineKeyboardButton,
     InlineKeyboardMarkup,
     InlineQuery,
     InlineQueryResultGif,
@@ -16,12 +17,15 @@ from aiogram.types import (
     InputMediaPhoto,
 )
 from aiogram.utils.exceptions import BadRequest, InvalidHTTPUrlContent, RetryAfter
+
 from telethon.tl.types import Message
+from telethon.errors.rpcerrorlist import ChatSendInlineForbiddenError
+
 from urllib.parse import urlparse
 import os
 
-from .. import utils
-from .types import InlineUnit
+from .. import utils, main
+from .types import InlineUnit, InlineMessage
 
 logger = logging.getLogger(__name__)
 
@@ -29,71 +33,75 @@ logger = logging.getLogger(__name__)
 class ListGalleryHelper:
     def __init__(self, lst: List[str]):
         self.lst = lst
+        self._current_index = -1
 
     def __call__(self):
-        elem = self.lst[0]
-        del self.lst[0]
-        return elem
+        self._current_index += 1
+        return self.lst[self._current_index % len(self.lst)]
+
+    def by_index(self, index: int):
+        return self.lst[index % len(self.lst)]
 
 
 class Gallery(InlineUnit):
     async def gallery(
         self,
         message: Union[Message, int],
-        next_handler: Union[FunctionType, List[str]],
-        caption: Union[str, FunctionType] = "",
+        next_handler: Union[callable, List[str]],
+        caption: Optional[Union[List[str], str, callable]] = "",
         *,
+        custom_buttons: Optional[Union[List[List[dict]], List[dict], dict]] = None,
         force_me: Optional[bool] = False,
         always_allow: Optional[list] = None,
         manual_security: Optional[bool] = False,
         disable_security: Optional[bool] = False,
         ttl: Optional[Union[int, bool]] = False,
-        on_unload: Optional[FunctionType] = None,
+        on_unload: Optional[callable] = None,
         preload: Optional[Union[bool, int]] = False,
         gif: Optional[bool] = False,
         silent: Optional[bool] = False,
         _reattempt: bool = False,
-    ) -> Union[bool, str]:
+    ) -> Union[bool, InlineMessage]:
         """
-        Processes inline gallery
-        Args:
-            caption
-                Caption for photo, or callable, returning caption
-            message
-                Where to send inline. Can be either `Message` or `int`
-            next_handler
-                Callback function, which must return url for next photo or list with photo urls
-            force_me
-                Either this gallery buttons must be pressed only by owner scope or no
-            always_allow
-                Users, that are allowed to press buttons in addition to previous rules
-            ttl
-                Time, when the gallery is going to be unloaded. Unload means, that the gallery
-                will become unusable. Pay attention, that ttl can't
-                be bigger, than default one (1 day) and must be either `int` or `False`
-            on_unload
-                Callback, called when gallery is unloaded and/or closed. You can clean up trash
-                or perform another needed action
-            preload
-                Either to preload gallery photos beforehand or no. If yes - specify threshold to
-                be loaded. Toggle this attribute, if your callback is too slow to load photos
-                in real time
-            gif
-                Whether the gallery will be filled with gifs. If you omit this argument and specify
-                gifs in `next_handler`, Hikka will try to determine the filetype of these images
-            manual_security
-                By default, Hikka will try to inherit inline buttons security from the caller (command)
-                If you want to avoid this, pass `manual_security=True`
-            disable_security
-                By default, Hikka will try to inherit inline buttons security from the caller (command)
-                If you want to disable all security checks on this gallery in particular, pass `disable_security=True`
-            silent
-                Whether the gallery must be sent silently (w/o "Loading inline gallery..." message)
+        Send inline gallery to chat
+        :param caption: Caption for photo, or callable, returning caption
+        :param message: Where to send inline. Can be either `Message` or `int`
+        :param next_handler: Callback function, which must return url for next photo or list with photo urls
+        :param custom_buttons: Custom buttons to add above native ones
+        :param force_me: Either this gallery buttons must be pressed only by owner scope or no
+        :param always_allow: Users, that are allowed to press buttons in addition to previous rules
+        :param ttl: Time, when the gallery is going to be unloaded. Unload means, that the gallery
+                    will become unusable. Pay attention, that ttl can't
+                    be bigger, than default one (1 day) and must be either `int` or `False`
+        :param on_unload: Callback, called when gallery is unloaded and/or closed. You can clean up trash
+                          or perform another needed action
+        :param preload: Either to preload gallery photos beforehand or no. If yes - specify threshold to
+                        be loaded. Toggle this attribute, if your callback is too slow to load photos
+                        in real time
+        :param gif: Whether the gallery will be filled with gifs. If you omit this argument and specify
+                    gifs in `next_handler`, Hikka will try to determine the filetype of these images
+        :param manual_security: By default, Hikka will try to inherit inline buttons security from the caller (command)
+                                If you want to avoid this, pass `manual_security=True`
+        :param disable_security: By default, Hikka will try to inherit inline buttons security from the caller (command)
+                                 If you want to disable all security checks on this gallery in particular, pass `disable_security=True`
+        :param silent: Whether the gallery must be sent silently (w/o "Loading inline gallery..." message)
+        :return: If gallery is sent, returns :obj:`InlineMessage`, otherwise returns `False`
         """
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self._client._tg_id)
 
-        if not isinstance(caption, str) and not callable(caption):
+        custom_buttons = self._validate_markup(custom_buttons)
+
+        if not (
+            isinstance(caption, str)
+            or isinstance(caption, list)
+            and all(isinstance(item, str) for item in caption)
+        ) and not callable(caption):
             logger.error("Invalid type for `caption`")
             return False
+
+        if isinstance(caption, list):
+            caption = ListGalleryHelper(caption)
 
         if not isinstance(manual_security, bool):
             logger.error("Invalid type for `manual_security`")
@@ -138,10 +146,6 @@ class Gallery(InlineUnit):
             logger.error("Invalid type for `ttl`")
             return False
 
-        if isinstance(ttl, int) and (ttl > self._markup_ttl or ttl < 10):
-            ttl = self._markup_ttl
-            logger.debug("Defaulted ttl, because it breaks out of limits")
-
         if isinstance(next_handler, list):
             if all(isinstance(i, str) for i in next_handler):
                 next_handler = ListGalleryHelper(next_handler)
@@ -150,14 +154,15 @@ class Gallery(InlineUnit):
                 return False
 
         unit_id = utils.rand(16)
-        btn_call_data = {
-            key: utils.rand(10) for key in {"back", "next", "close", "show"}
-        }
+        btn_call_data = utils.rand(10)
 
         try:
-            photo_url = await self._call_photo(next_handler)
-            if not photo_url:
-                return False
+            if isinstance(next_handler, ListGalleryHelper):
+                photo_url = next_handler.lst
+            else:
+                photo_url = await self._call_photo(next_handler)
+                if not photo_url:
+                    return False
         except Exception:
             logger.exception("Error while parsing first photo in gallery")
             return False
@@ -175,6 +180,7 @@ class Gallery(InlineUnit):
             "btn_call_data": btn_call_data,
             "photos": [photo_url] if isinstance(photo_url, str) else photo_url,
             "current_index": 0,
+            "future": asyncio.Event(),
             **({"ttl": round(time.time()) + ttl} if ttl else {}),
             **({"force_me": force_me} if force_me else {}),
             **({"disable_security": disable_security} if disable_security else {}),
@@ -184,9 +190,16 @@ class Gallery(InlineUnit):
             **({"always_allow": always_allow} if always_allow else {}),
             **({"perms_map": perms_map} if perms_map else {}),
             **({"message": message} if isinstance(message, Message) else {}),
+            **({"custom_buttons": custom_buttons} if custom_buttons else {}),
         }
 
-        default_map = {
+        self._custom_map[btn_call_data] = {
+            "handler": asyncio.coroutine(
+                functools.partial(
+                    self._gallery_page,
+                    unit_id=unit_id,
+                )
+            ),
             **(
                 {"ttl": self._units[unit_id]["ttl"]}
                 if "ttl" in self._units[unit_id]
@@ -199,59 +212,22 @@ class Gallery(InlineUnit):
             **({"message": message} if isinstance(message, Message) else {}),
         }
 
-        self._custom_map[btn_call_data["back"]] = {
-            "handler": asyncio.coroutine(
-                functools.partial(
-                    self._gallery_back,
-                    btn_call_data=btn_call_data,
-                    unit_id=unit_id,
-                )
-            ),
-            **default_map,
-        }
-
-        self._custom_map[btn_call_data["close"]] = {
-            "handler": asyncio.coroutine(
-                functools.partial(
-                    self._delete_unit_message,
-                    unit_uid=unit_id,
-                )
-            ),
-            **default_map,
-        }
-
-        self._custom_map[btn_call_data["next"]] = {
-            "handler": asyncio.coroutine(
-                functools.partial(
-                    self._gallery_next,
-                    func=next_handler,
-                    btn_call_data=btn_call_data,
-                    unit_id=unit_id,
-                )
-            ),
-            **default_map,
-        }
-
-        self._custom_map[btn_call_data["show"]] = {
-            "handler": asyncio.coroutine(
-                functools.partial(
-                    self._gallery_slideshow,
-                    btn_call_data=btn_call_data,
-                    unit_id=unit_id,
-                )
-            ),
-            **default_map,
-        }
-
         if isinstance(message, Message) and not silent:
             try:
                 status_message = await (
                     message.edit if message.out else message.respond
-                )("🌘 <b>Loading inline gallery...</b>")
+                )("▫️ <b>Loading inline gallery...</b>")
             except Exception:
                 status_message = None
         else:
             status_message = None
+
+        async def answer(msg: str):
+            nonlocal message
+            if isinstance(message, Message):
+                await (message.edit if message.out else message.respond)(msg)
+            else:
+                await self._client.send_message(message, msg)
 
         try:
             q = await self._client.inline_query(self.bot_username, unit_id)
@@ -261,40 +237,39 @@ class Gallery(InlineUnit):
                 if isinstance(message, Message)
                 else None,
             )
-        except Exception:
+        except ChatSendInlineForbiddenError:
+            await answer("🚫 <b>You can't send inline units in this chat</b>")
+        except Exception as e:
             logger.exception("Error sending inline gallery")
 
             del self._units[unit_id]
 
             if _reattempt:
-                msg = (
-                    "🚫 <b>A problem occurred with inline bot "
-                    "while processing query. Check logs for "
-                    "further info.</b>"
-                )
+                logger.exception("Can't send gallery")
 
-                if isinstance(message, Message):
-                    await (message.edit if message.out else message.respond)(msg)
+                if not self._db.get(main.__name__, "inlinelogs", True):
+                    msg = f"<b>🚫 Gallery invoke failed! More info in logs</b>"
                 else:
-                    await self._client.send_message(message, msg)
+                    exc = traceback.format_exc()
+                    # Remove `Traceback (most recent call last):`
+                    exc = "\n".join(exc.splitlines()[1:])
+                    msg = (
+                        f"<b>🚫 Gallery invoke failed!</b>\n\n"
+                        f"<b>🧾 Logs:</b>\n<code>{exc}</code>"
+                    )
+
+                del self._units[unit_id]
+                await answer(msg)
 
                 return False
 
-            return await self.gallery(
-                message=message,
-                next_handler=next_handler,
-                caption=caption,
-                force_me=force_me,
-                always_allow=always_allow,
-                manual_security=manual_security,
-                disable_security=disable_security,
-                ttl=ttl,
-                on_unload=on_unload,
-                preload=preload,
-                gif=gif,
-                silent=silent,
-                _reattempt=True,
-            )
+            kwargs = utils.get_kwargs()
+            kwargs["_reattempt"] = True
+
+            return await self.gallery(**kwargs)
+
+        await self._units[unit_id]["future"].wait()
+        del self._units[unit_id]["future"]
 
         self._units[unit_id]["chat"] = utils.get_chat_id(m)
         self._units[unit_id]["message_id"] = m.id
@@ -305,20 +280,21 @@ class Gallery(InlineUnit):
         if status_message and not message.out:
             await status_message.delete()
 
-        asyncio.ensure_future(self._load_gallery_photos(unit_id))
+        if not isinstance(next_handler, ListGalleryHelper):
+            asyncio.ensure_future(self._load_gallery_photos(unit_id))
 
-        return unit_id
+        return InlineMessage(self, unit_id, self._units[unit_id]["inline_message_id"])
 
-    async def _call_photo(self, callback: FunctionType) -> Union[str, bool]:
+    async def _call_photo(self, callback: callable) -> Union[str, bool]:
         """Parses photo url from `callback`. Returns url on success, otherwise `False`"""
-        if asyncio.iscoroutinefunction(callback):
-            photo_url = await callback()
-        elif getattr(callback, "__call__", False):
-            photo_url = callback()
-        elif isinstance(callback, str):
+        if isinstance(callback, str):
             photo_url = callback
         elif isinstance(callback, list):
             photo_url = callback[0]
+        elif asyncio.iscoroutinefunction(callback):
+            photo_url = await callback()
+        elif callable(callback):
+            photo_url = callback()
         else:
             logger.error("Invalid type for `next_handler`")
             return False
@@ -331,45 +307,52 @@ class Gallery(InlineUnit):
 
     async def _load_gallery_photos(self, unit_id: str):
         """Preloads photo. Should be called via ensure_future"""
-        photo_url = await self._call_photo(self._units[unit_id]["next_handler"])
+        unit = self._units[unit_id]
+
+        photo_url = await self._call_photo(unit["next_handler"])
 
         self._units[unit_id]["photos"] += (
             [photo_url] if isinstance(photo_url, str) else photo_url
         )
 
+        unit = self._units[unit_id]
+
         # If only one preload was insufficient to load needed amount of photos
-        if self._units[unit_id].get("preload", False) and len(
-            self._units[unit_id]["photos"]
-        ) - self._units[unit_id]["current_index"] < self._units[unit_id].get(
-            "preload", False
-        ):
+        if unit.get("preload", False) and len(unit["photos"]) - unit[
+            "current_index"
+        ] < unit.get("preload", False):
             # Start load again
             asyncio.ensure_future(self._load_gallery_photos(unit_id))
 
     async def _gallery_slideshow_loop(
         self,
         call: CallbackQuery,
-        btn_call_data: List[str] = None,
         unit_id: str = None,
     ):
         while True:
             await asyncio.sleep(7)
 
-            if unit_id not in self._units or not self._units[unit_id].get(
-                "slideshow", False
-            ):
+            unit = self._units[unit_id]
+
+            if unit_id not in self._units or not unit.get("slideshow", False):
                 return
 
-            await self._custom_map[btn_call_data["next"]]["handler"](
+            if unit["current_index"] + 1 >= len(unit["photos"]) and isinstance(
+                unit["next_handler"],
+                ListGalleryHelper,
+            ):
+                del self._units[unit_id]["slideshow"]
+                self._units[unit_id]["current_index"] -= 1
+
+            await self._gallery_page(
                 call,
-                *self._custom_map[btn_call_data["next"]].get("args", []),
-                **self._custom_map[btn_call_data["next"]].get("kwargs", {}),
+                self._units[unit_id]["current_index"] + 1,
+                unit_id=unit_id,
             )
 
     async def _gallery_slideshow(
         self,
         call: CallbackQuery,
-        btn_call_data: List[str] = None,
         unit_id: str = None,
     ):
         if not self._units[unit_id].get("slideshow", False):
@@ -378,20 +361,19 @@ class Gallery(InlineUnit):
                 inline_message_id=call.inline_message_id,
                 reply_markup=self._gallery_markup(unit_id),
             )
-            await call.answer("✅ Slideshow on")
+            await call.answer("◽ Slideshow on")
         else:
             del self._units[unit_id]["slideshow"]
             await self.bot.edit_message_reply_markup(
                 inline_message_id=call.inline_message_id,
                 reply_markup=self._gallery_markup(unit_id),
             )
-            await call.answer("🚫 Slideshow off")
+            await call.answer("◾ Slideshow off")
             return
 
         asyncio.ensure_future(
             self._gallery_slideshow_loop(
                 call,
-                btn_call_data,
                 unit_id,
             )
         )
@@ -399,7 +381,6 @@ class Gallery(InlineUnit):
     async def _gallery_back(
         self,
         call: CallbackQuery,
-        btn_call_data: List[str] = None,
         unit_id: str = None,
     ):
         queue = self._units[unit_id]["photos"]
@@ -446,40 +427,68 @@ class Gallery(InlineUnit):
         if self._units[unit_id].get("gif", False) or ext in {".gif", ".mp4"}:
             return InputMediaAnimation(
                 media=media,
-                caption=self._get_caption(unit_id),
+                caption=self._get_caption(
+                    unit_id,
+                    index=self._units[unit_id]["current_index"],
+                ),
                 parse_mode="HTML",
             )
 
         return InputMediaPhoto(
             media=media,
-            caption=self._get_caption(unit_id),
+            caption=self._get_caption(
+                unit_id,
+                index=self._units[unit_id]["current_index"],
+            ),
             parse_mode="HTML",
         )
 
-    async def _gallery_next(
+    async def _gallery_page(
         self,
         call: CallbackQuery,
-        btn_call_data: List[str] = None,
-        func: FunctionType = None,
+        page: Union[int, str],
         unit_id: str = None,
     ):
-        self._units[unit_id]["current_index"] += 1
-        # If we exceeded photos limit in gallery and need to preload more
-        if self._units[unit_id]["current_index"] >= len(self._units[unit_id]["photos"]):
-            await self._load_gallery_photos(unit_id)
-
-        # If we still didn't get needed photo index
-        if self._units[unit_id]["current_index"] >= len(self._units[unit_id]["photos"]):
-            await call.answer("Can't load next photo")
+        if page == "slideshow":
+            await self._gallery_slideshow(call, unit_id)
             return
 
-        if self._units[unit_id].get("preload", False) and len(
-            self._units[unit_id]["photos"]
-        ) - self._units[unit_id]["current_index"] < self._units[unit_id].get(
-            "preload", False
+        if page == "close":
+            await self._delete_unit_message(call, unit_id=unit_id)
+            return
+
+        if page < 0:
+            await call.answer("No way back")
+            return
+
+        if page > len(self._units[unit_id]["photos"]) - 1 and isinstance(
+            self._units[unit_id]["next_handler"], ListGalleryHelper
         ):
-            logger.debug(f"Started preload for gallery {unit_id}")
-            asyncio.ensure_future(self._load_gallery_photos(unit_id))
+            await call.answer("No way forward")
+            return
+
+        self._units[unit_id]["current_index"] = page
+        if not isinstance(self._units[unit_id]["next_handler"], ListGalleryHelper):
+            # If we exceeded photos limit in gallery and need to preload more
+            if self._units[unit_id]["current_index"] >= len(
+                self._units[unit_id]["photos"]
+            ):
+                await self._load_gallery_photos(unit_id)
+
+            # If we still didn't get needed photo index
+            if self._units[unit_id]["current_index"] >= len(
+                self._units[unit_id]["photos"]
+            ):
+                await call.answer("Can't load next photo")
+                return
+
+            if (
+                len(self._units[unit_id]["photos"])
+                - self._units[unit_id]["current_index"]
+                < self._units[unit_id].get("preload", 0) // 2
+            ):
+                logger.debug(f"Started preload for gallery {unit_id}")
+                asyncio.ensure_future(self._load_gallery_photos(unit_id))
 
         try:
             await self.bot.edit_message_media(
@@ -491,7 +500,7 @@ class Gallery(InlineUnit):
             logger.debug("Error fetching photo content, attempting load next one")
             del self._units[unit_id]["photos"][self._units[unit_id]["current_index"]]
             self._units[unit_id]["current_index"] -= 1
-            return await self._gallery_next(call, btn_call_data, func, unit_id)
+            return await self._gallery_page(call, page, unit_id)
         except RetryAfter as e:
             await call.answer(
                 f"Got FloodWait. Wait for {e.timeout} seconds",
@@ -515,41 +524,74 @@ class Gallery(InlineUnit):
             )
             return self._units[unit_id]["photos"][0]
 
-    def _get_caption(self, unit_id: str) -> str:
+    def _get_caption(self, unit_id: str, index: int = 0) -> str:
         """Calls and returnes caption for gallery"""
+        caption = self._units[unit_id].get("caption", "")
+        if isinstance(caption, ListGalleryHelper):
+            return caption.by_index(index)
+
         return (
-            self._units[unit_id]["caption"]
-            if isinstance(self._units[unit_id]["caption"], str)
-            or not callable(self._units[unit_id]["caption"])
-            else self._units[unit_id]["caption"]()
+            caption
+            if isinstance(caption, str)
+            else ""
+            if not callable(caption)
+            else caption()
         )
 
     def _gallery_markup(self, unit_id: str) -> InlineKeyboardMarkup:
-        """Converts `btn_call_data` into a aiogram markup"""
-        markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton(
-                "⏪",
-                callback_data=self._units[unit_id]["btn_call_data"]["back"],
-            ),
-            InlineKeyboardButton(
-                "▶️" if not self._units[unit_id].get("slideshow", False) else "⏸",
-                callback_data=self._units[unit_id]["btn_call_data"]["show"],
-            ),
-            InlineKeyboardButton(
-                "⏩",
-                callback_data=self._units[unit_id]["btn_call_data"]["next"],
-            ),
+        """Generates aiogram markup for `gallery`"""
+        callback = functools.partial(self._gallery_page, unit_id=unit_id)
+        unit = self._units[unit_id]
+        return self.generate_markup(
+            unit.get("custom_buttons", [])
+            + self.build_pagination(
+                unit_id=unit_id,
+                callback=callback,
+                total_pages=len(unit["photos"]),
+            )
+            + [
+                [
+                    *(
+                        [
+                            {
+                                "text": "▫️Back",
+                                "callback": callback,
+                                "args": (unit["current_index"] - 1,),
+                            }
+                        ]
+                        if unit["current_index"] > 0
+                        else []
+                    ),
+                    *(
+                        [
+                            {
+                                "text": "🔆 Slideshow"
+                                if not unit.get("slideshow", False)
+                                else "🔅 Slideshow off",
+                                "callback": callback,
+                                "args": ("slideshow",),
+                            }
+                        ]
+                        if unit["current_index"] < len(unit["photos"]) - 1
+                        or not isinstance(unit["next_handler"], ListGalleryHelper)
+                        else []
+                    ),
+                    *(
+                        [
+                            {
+                                "text": "▪️Next",
+                                "callback": callback,
+                                "args": (unit["current_index"] + 1,),
+                            }
+                        ]
+                        if unit["current_index"] < len(unit["photos"]) - 1
+                        or not isinstance(unit["next_handler"], ListGalleryHelper)
+                        else []
+                    ),
+                ]
+            ]
+            + [[{"text": "⭕ Close", "callback": callback, "args": ("close",)}]],
         )
-
-        markup.add(
-            InlineKeyboardButton(
-                "❌ Close",
-                callback_data=self._units[unit_id]["btn_call_data"]["close"],
-            ),
-        )
-
-        return markup
 
     async def _gallery_inline_handler(self, inline_query: InlineQuery):
         for unit in self._units.copy().values():
@@ -566,7 +608,7 @@ class Gallery(InlineUnit):
 
                 args = {
                     "thumb_url": "https://img.icons8.com/fluency/344/loading.png",
-                    "caption": self._get_caption(unit["uid"]),
+                    "caption": self._get_caption(unit["uid"], index=0),
                     "parse_mode": "HTML",
                     "reply_markup": self._gallery_markup(unit["uid"]),
                     "id": utils.rand(20),

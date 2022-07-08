@@ -96,6 +96,7 @@ class Web:
             "tg_done": bool(self.client_data),
             "okteto": "OKTETO" in os.environ,
             "lavhost": "LAVHOST" in os.environ,
+            "heroku": "DYNO" in os.environ,
         }
 
     async def check_session(self, request):
@@ -192,15 +193,12 @@ class Web:
             return web.Response(status=400)
 
         if "DYNO" not in os.environ:
+            # On Heroku it'll be saved later
             with open(
                 os.path.join(self.data_root or DATA_DIR, "api_token.txt"),
                 "w",
             ) as f:
                 f.write(api_id + "\n" + api_hash)
-        else:
-            config = heroku.get_app(os.environ["heroku_api_token"])[1]
-            config["api_id"] = api_id
-            config["api_hash"] = api_hash
 
         self.api_token = collections.namedtuple("api_token", ("ID", "HASH"))(
             api_id,
@@ -272,7 +270,7 @@ class Web:
 
         if not password:
             try:
-                user = await self._pending_client.sign_in(phone, code=code)
+                await self._pending_client.sign_in(phone, code=code)
             except telethon.errors.SessionPasswordNeededError:
                 return web.Response(status=401)  # Requires 2FA login
             except telethon.errors.PhoneCodeExpiredError:
@@ -283,7 +281,7 @@ class Web:
                 return web.Response(status=421)
         else:
             try:
-                user = await self._pending_client.sign_in(phone, password=password)
+                await self._pending_client.sign_in(phone, password=password)
             except telethon.errors.PasswordHashInvalidError:
                 return web.Response(status=403)  # Invalid 2FA password
             except telethon.errors.FloodWaitError:
@@ -293,7 +291,9 @@ class Web:
         # so it doesn't create bot immediately. That's why we only save its session
         # in case user closes web early. It will be handled on restart
         # If user finishes login further, client will be passed to main
-        await main.hikka.save_client_session(self._pending_client)
+        # To prevent Heroku from restarting too soon, we'll do it after setting bot
+        if "DYNO" not in os.environ:
+            await main.hikka.save_client_session(self._pending_client)
 
         return web.Response()
 
@@ -303,6 +303,18 @@ class Web:
 
         if not self._pending_client:
             return web.Response(status=400)
+
+        if "DYNO" in os.environ:
+            app, config = heroku.get_app()
+            config["api_id"] = self.api_token.ID
+            config["api_hash"] = self.api_token.HASH
+            await main.hikka.save_client_session(
+                self._pending_client,
+                heroku_config=config,
+                heroku_app=app,
+            )
+            # We don't care what happens next, bc Heroku will restart anyway
+            return
 
         first_session = not bool(main.hikka.clients)
 
@@ -394,7 +406,13 @@ class Web:
                     disable_web_page_preview=True,
                     reply_markup=markup,
                 )
-                ops += [bot.delete_message(msg.chat.id, msg.message_id)]
+                ops += [
+                    functools.partial(
+                        bot.delete_message,
+                        chat_id=msg.chat.id,
+                        message_id=msg.message_id,
+                    )
+                ]
             except Exception:
                 pass
 
@@ -408,11 +426,11 @@ class Web:
 
         if not await main.hikka.wait_for_web_auth(token):
             for op in ops:
-                await op
+                await op()
             return web.Response(body="TIMEOUT")
 
         for op in ops:
-            await op
+            await op()
 
         self._sessions += [session]
 

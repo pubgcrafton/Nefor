@@ -12,6 +12,7 @@ import itertools
 import logging
 from traceback import format_exc
 from types import ModuleType
+import os
 
 import telethon
 from meval import meval
@@ -77,10 +78,6 @@ class PythonMod(loader.Module):
         """Alias for .e command"""
         await self.ecmd(message)
 
-    async def inline__close(self, call: InlineCall):
-        await call.answer("Operation cancelled")
-        await call.delete()
-
     async def inline__allow(self, call: InlineCall):
         await call.answer("Now you can access db through .e command", show_alert=True)
         self._db.set(main.__name__, "enable_db_eval", True)
@@ -106,13 +103,26 @@ class PythonMod(loader.Module):
                             "text": "✅ Allow",
                             "callback": self.inline__allow,
                         },
-                        {"text": "🚫 Cancel", "callback": self.inline__close},
+                        {"text": "🚫 Cancel", "action": "close"},
                     ]
                 ],
             )
             return
         except Exception:
             exc = format_exc().replace(self._phone, "📵")
+
+            if os.environ.get("DATABASE_URL"):
+                exc = exc.replace(
+                    os.environ.get("DATABASE_URL"),
+                    "postgre://**************************",
+                )
+
+            if os.environ.get("hikka_session"):
+                exc = exc.replace(
+                    os.environ.get("hikka_session"),
+                    "StringSession(**************************)",
+                )
+
             await utils.answer(
                 message,
                 self.strings("err").format(
@@ -127,6 +137,21 @@ class PythonMod(loader.Module):
             utils.escape_html(it),
         )
         ret = ret.replace(str(self._phone), "📵")
+
+        postgre = os.environ.get("DATABASE_URL") or main.get_config_key("postgre_uri")
+        if postgre:
+            ret = ret.replace(postgre, "postgre://**************************")
+
+        redis = os.environ.get("REDIS_URL") or main.get_config_key("redis_uri")
+        if redis:
+            ret = ret.replace(redis, "redis://**************************")
+
+        if os.environ.get("hikka_session"):
+            ret = ret.replace(
+                os.environ.get("hikka_session"),
+                "StringSession(**************************)",
+            )
+
         try:
             await utils.answer(message, ret)
         except MessageIdInvalidError:

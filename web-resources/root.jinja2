@@ -67,6 +67,10 @@
       color: #fff;
       padding: 15px 0;
     }
+
+    .finish_block {
+      display: none;
+    }
   </style>
 {% endblock %}
 
@@ -80,15 +84,26 @@
   <div class="confirm_auth">Please, confirm action in <span style="color:#28a0dc">Telegram</span></div>
 </div>
 <div class="wrapper">
-  <div class="blur main">
-    <div class="title">Hikka</div>
-    <div class="description">Fresh and cute<br><span style="color:#28a0dc">Telegram</span> userbot.<br><span style="color: #18cc18; display: none" class="authorized">Authorized!</span></div>
+  <div class="blur main finish_block">
+    <div id="installation_icon"></div>
+    <div class="title">Nino is installed</div>
+    <div class="description">
+      {% if heroku %}
+      Wait for a while, Nino will be ready in a few minutes.
+      {% else %}
+      Nino is ready to use.
+      {% endif %}
+    </div>
+  </div>
+  <div class="blur main installation">
+    <div class="title">✿ Nino-Userbot ✿</div>
+    <div class="description">Safe and Fast<br><span style="color:#28a0dc">Telegram</span> userbot.<br><span style="color: #18cc18; display: none" class="authorized">Authorized!</span></div>
     <div class="center">
       {% if not tg_done %}
         <div class="button" id="get_started">
           <div class="horiz_center">
             <div class="vert_center">
-              Get started
+              Start
             </div>
 
             <div class="vert_center">

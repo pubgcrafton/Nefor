@@ -30,7 +30,7 @@ class HelpMod(loader.Module):
         "single_mod_header": "🌑 <b>{}</b>:",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 No docs",
-        "all_header": "🌘 <b>{} mods available, {} hidden:</b>",
+        "all_header": "🌐 <b>{} mods available, {} hidden:</b>",
         "mod_tmpl": "\n{} <code>{}</code>",
         "first_cmd_tmpl": ": ( {}",
         "cmd_tmpl": " | {}",
@@ -49,20 +49,20 @@ class HelpMod(loader.Module):
         "single_mod_header": "🌑 <b>{}</b>:",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 Нет описания",
-        "all_header": "🌘 <b>{} модулей доступно, {} скрыто:</b>",
+        "all_header": "🇯🇵 <b>{} модулей доступно, {} скрыто:</b>",
         "mod_tmpl": "\n{} <code>{}</code>",
-        "first_cmd_tmpl": ": ( {}",
-        "cmd_tmpl": " | {}",
+        "first_cmd_tmpl": ": [ <code>{}</code>",
+        "cmd_tmpl": " | <code>{}</code>",
         "no_mod": "🚫 <b>Укажи модуль(-и), которые нужно скрыть</b>",
-        "hidden_shown": "🌘 <b>{} модулей скрыто, {} модулей показано:</b>\n{}\n{}",
-        "ihandler": "\n🎹 <code>{}</code> {}",
+        "hidden_shown": "🌐 <b>{} модулей скрыто, {} модулей показано:</b>\n{}\n{}",
+        "ihandler": "\n🔳 <code>{}</code> <code>{}</code>",
         "undoc_ihandler": "🦥 Нет описания",
-        "joined": "🌘 <b>Вступил в</b> <a href='https://t.me/hikka_talks'>чат помощи</a>",
-        "join": "🌘 <b>Вступи в</b> <a href='https://t.me/hikka_talks'>чат помощи</a>",
+        "joined": "🌘 <b>Вступил в</b> <a href='https://t.me/Nino_talks'>чат помощи</a>",
+        "join": "🌘 <b>Вступи в</b> <a href='https://t.me/Nino_talks'>чат помощи</a>",
         "_cmd_doc_helphide": "<модуль(-и)> - Скрывает модуль(-и) из помощи\n*Разделяй имена модулей пробелами",
         "_cmd_doc_help": "[модуль] [-f] - Показывает помощь",
         "_cmd_doc_support": "Вступает в чат помощи Hikka",
-        "_cls_doc": "Модуль помощи, сделанный специально для Hikka <3",
+        "_cls_doc": "Модуль помощи, сделанный специально для Nino <3",
         "partial_load": "⚠️ <b>Юзербот еще не загрузился полностью, поэтому показаны не все модули</b>",
         "not_exact": "⚠️ <b>Точного совпадения не нашлось, поэтому было выбрано наиболее подходящее</b>",
     }
@@ -76,15 +76,21 @@ class HelpMod(loader.Module):
                 validator=loader.validators.String(length=1),
             ),
             loader.ConfigValue(
-                "hikka_emoji",
-                "🌘",
+                "nino_emoji",
+                "🧑‍🎤",
                 lambda: "Hikka-only module bullet",
                 validator=loader.validators.String(length=1),
             ),
             loader.ConfigValue(
                 "plain_emoji",
-                "▫️",
+                "▪️",
                 lambda: "Plain module bullet",
+                validator=loader.validators.String(length=1),
+            ),
+            loader.ConfigValue(
+                "empty_emoji",
+                "👁‍🗨",
+                lambda: "Empty modules bullet",
                 validator=loader.validators.String(length=1),
             ),
         )
@@ -126,97 +132,98 @@ class HelpMod(loader.Module):
             ),
         )
 
+    async def modhelp(self, message: Message, args: str):
+        exact = True
+
+        try:
+            module = next(
+                mod
+                for mod in self.allmodules.modules
+                if mod.strings("name").lower() == args.lower()
+            )
+        except Exception:
+            module = None
+
+        if not module:
+            args = args.lower()
+            args = args[1:] if args.startswith(self.get_prefix()) else args
+            if args in self.allmodules.commands:
+                module = self.allmodules.commands[args].__self__
+
+        if not module:
+            module_name = next(  # skipcq: PTC-W0063
+                reversed(
+                    sorted(
+                        [module.strings["name"] for module in self.allmodules.modules],
+                        key=lambda x: difflib.SequenceMatcher(
+                            None,
+                            args.lower(),
+                            x,
+                        ).ratio(),
+                    )
+                )
+            )
+
+            module = next(  # skipcq: PTC-W0063
+                module
+                for module in self.allmodules.modules
+                if module.strings["name"] == module_name
+            )
+
+            exact = False
+
+        try:
+            name = module.strings("name")
+        except KeyError:
+            name = getattr(module, "name", "ERROR")
+
+        reply = self.strings("single_mod_header").format(utils.escape_html(name))
+        if module.__doc__:
+            reply += "<i>\nℹ️ " + utils.escape_html(inspect.getdoc(module)) + "\n</i>"
+
+        commands = {
+            name: func
+            for name, func in module.commands.items()
+            if await self.allmodules.check_security(message, func)
+        }
+
+        if hasattr(module, "inline_handlers"):
+            for name, fun in module.inline_handlers.items():
+                reply += self.strings("ihandler").format(
+                    f"@{self.inline.bot_username} {name}",
+                    (
+                        utils.escape_html(inspect.getdoc(fun))
+                        if fun.__doc__
+                        else self.strings("undoc_ihandler")
+                    ),
+                )
+
+        for name, fun in commands.items():
+            reply += self.strings("single_cmd").format(
+                self.get_prefix(),
+                name,
+                (
+                    utils.escape_html(inspect.getdoc(fun))
+                    if fun.__doc__
+                    else self.strings("undoc_cmd")
+                ),
+            )
+
+        await utils.answer(
+            message, f"{reply}\n\n{self.strings('not_exact') if not exact else ''}"
+        )
+
     @loader.unrestricted
     async def helpcmd(self, message: Message):
         """[module] [-f] - Show help"""
         args = utils.get_args_raw(message)
         force = False
-        exact = True
         if "-f" in args:
             args = args.replace(" -f", "").replace("-f", "")
             force = True
 
         if args:
-            try:
-                module = next(
-                    mod
-                    for mod in self.allmodules.modules
-                    if mod.strings("name").lower() == args.lower()
-                )
-            except Exception:
-                module = None
-
-            if not module:
-                args = args.lower()
-                args = args[1:] if args.startswith(self.get_prefix()) else args
-                if args in self.allmodules.commands:
-                    module = self.allmodules.commands[args].__self__
-
-            if not module:
-                module_name = next(  # skipcq: PTC-W0063
-                    reversed(
-                        sorted(
-                            [
-                                module.strings["name"]
-                                for module in self.allmodules.modules
-                            ],
-                            key=lambda x: difflib.SequenceMatcher(
-                                None,
-                                args.lower(),
-                                x,
-                            ).ratio(),
-                        )
-                    )
-                )
-
-                module = next(  # skipcq: PTC-W0063
-                    module
-                    for module in self.allmodules.modules
-                    if module.strings["name"] == module_name
-                )
-
-                exact = False
-
-            try:
-                name = module.strings("name")
-            except KeyError:
-                name = getattr(module, "name", "ERROR")
-
-            reply = self.strings("single_mod_header").format(utils.escape_html(name))
-            if module.__doc__:
-                reply += "<i>\nℹ️ " + utils.escape_html(inspect.getdoc(module)) + "\n</i>"  # fmt: skip
-
-            commands = {
-                name: func
-                for name, func in module.commands.items()
-                if await self.allmodules.check_security(message, func)
-            }
-
-            if hasattr(module, "inline_handlers"):
-                for name, fun in module.inline_handlers.items():
-                    reply += self.strings("ihandler").format(
-                        f"@{self.inline.bot_username} {name}",
-                        (
-                            utils.escape_html(inspect.getdoc(fun))
-                            if fun.__doc__
-                            else self.strings("undoc_ihandler")
-                        ),
-                    )
-
-            for name, fun in commands.items():
-                reply += self.strings("single_cmd").format(
-                    self.get_prefix(),
-                    name,
-                    (
-                        utils.escape_html(inspect.getdoc(fun))
-                        if fun.__doc__
-                        else self.strings("undoc_cmd")
-                    ),
-                )
-
-            await utils.answer(
-                message, f"{reply}\n\n{self.strings('not_exact') if not exact else ''}"
-            )
+            await self.modhelp(message, args)
             return
 
         count = 0
@@ -238,6 +245,7 @@ class HelpMod(loader.Module):
         plain_ = []
         core_ = []
         inline_ = []
+        no_commands_ = []
 
         for mod in self.allmodules.modules:
             if not hasattr(mod, "commands"):
@@ -275,12 +283,21 @@ class HelpMod(loader.Module):
             if core:
                 emoji = self.config["core_emoji"]
             elif inline:
-                emoji = self.config["hikka_emoji"]
+                emoji = self.config["nino_emoji"]
             else:
                 emoji = self.config["plain_emoji"]
 
-            tmp += self.strings("mod_tmpl").format(emoji, name)
+            if (
+                not getattr(mod, "commands", None)
+                and not getattr(mod, "inline_handlers", None)
+                and not getattr(mod, "callback_handlers", None)
+            ):
+                no_commands_ += [
+                    self.strings("mod_tmpl").format(self.config["empty_emoji"], name)
+                ]
+                continue
 
+            tmp += self.strings("mod_tmpl").format(emoji, name)
             first = True
 
             commands = [
@@ -308,13 +325,13 @@ class HelpMod(loader.Module):
 
             for cmd in icommands:
                 if first:
-                    tmp += self.strings("first_cmd_tmpl").format(f"🎹 {cmd}")
+                    tmp += self.strings("first_cmd_tmpl").format(f"🔳 {cmd}")
                     first = False
                 else:
-                    tmp += self.strings("cmd_tmpl").format(f"🎹 {cmd}")
+                    tmp += self.strings("cmd_tmpl").format(f"🔳 {cmd}")
 
             if commands or icommands:
-                tmp += " )"
+                tmp += " ]"
                 if core:
                     core_ += [tmp]
                 elif inline:
@@ -328,6 +345,8 @@ class HelpMod(loader.Module):
         plain_.sort(key=lambda x: x.split()[1])
         core_.sort(key=lambda x: x.split()[1])
         inline_.sort(key=lambda x: x.split()[1])
+        no_commands_.sort(key=lambda x: x.split()[1])
+        no_commands_ = "\n".join(no_commands_) if force else ""
 
         partial_load = (
             f"\n\n{self.strings('partial_load')}"
@@ -337,41 +356,5 @@ class HelpMod(loader.Module):
 
         await utils.answer(
             message,
-            f"{reply}\n{''.join(core_)}{''.join(plain_)}{''.join(inline_)}{partial_load}",
+            f"{reply}\n{''.join(core_)}{''.join(plain_)}{''.join(inline_)}{no_commands_}{partial_load}",
         )
-
-    async def supportcmd(self, message):
-        """Joins the support Hikka chat"""
-        if await self.allmodules.check_security(
-            message,
-            security.OWNER | security.SUDO,
-        ):
-            await self._client(JoinChannelRequest("https://t.me/hikka_talks"))
-
-            try:
-                await self.inline.form(
-                    self.strings("joined"),
-                    reply_markup=[
-                        [{"text": "👩‍💼 Chat", "url": "https://t.me/hikka_talks"}]
-                    ],
-                    ttl=10,
-                    message=message,
-                )
-            except Exception:
-                await utils.answer(message, self.strings("joined"))
-        else:
-            try:
-                await self.inline.form(
-                    self.strings("join"),
-                    reply_markup=[
-                        [{"text": "👩‍💼 Chat", "url": "https://t.me/hikka_talks"}]
-                    ],
-                    ttl=10,
-                    message=message,
-                )
-            except Exception:
-                await utils.answer(message, self.strings("join"))
-
-    async def client_ready(self, client, db):
-        self._client = client
-        self._db = db

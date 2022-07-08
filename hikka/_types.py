@@ -2,8 +2,8 @@ import ast
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional, Union
-from .inline.types import *  # noqa: F401, F403
-from . import validators  # noqa: F401
+from .inline.types import *
+from . import validators  # skipcq: PY-W2000
 
 from telethon.tl.types import Message
 
@@ -40,7 +40,7 @@ class Module:
 
 
 class LoadError(Exception):
-    """Tells user, why your module can't be loaded, if rased in `client_ready`"""
+    """Tells user, why your module can't be loaded, if raised in `client_ready`"""
 
     def __init__(self, error_message: str):  # skipcq: PYL-W0231
         self._error = error_message
@@ -114,11 +114,11 @@ class ModuleConfig(dict):
 
     def __setitem__(self, key: str, value: Any):
         self._config[key].value = value
-        return dict.__setitem__(self, key, value)
+        self.update({key: value})
 
     def set_no_raise(self, key: str, value: Any):
         self._config[key].set_no_raise(value)
-        return dict.__setitem__(self, key, value)
+        self.update({key: value})
 
     def __getitem__(self, key: str) -> Any:
         try:
@@ -173,15 +173,33 @@ class ConfigValue:
                     item.strip() if isinstance(item, str) else item for item in value
                 ]
 
-            if self.validator is not None and value is not None:
-                try:
-                    value = self.validator.validate(value)
-                except validators.ValidationError as e:
-                    if not ignore_validation:
-                        raise e
-                    logger.warning(f"Config vaue was broken ({value}), so it was reset to {self.default}")  # fmt: skip
+            if self.validator is not None:
+                if value is not None:
+                    try:
+                        value = self.validator.validate(value)
+                    except validators.ValidationError as e:
+                        if not ignore_validation:
+                            raise e
 
-                    value = self.default
+                        logger.debug(
+                            f"Config value was broken ({value}), so it was reset to {self.default}"
+                        )
+
+                        value = self.default
+                else:
+                    defaults = {
+                        "String": "",
+                        "Integer": 0,
+                        "Boolean": False,
+                        "Series": [],
+                        "Float": 0.0,
+                    }
+
+                    if self.validator.internal_id in defaults:
+                        logger.debug(
+                            f"Config value was None, so it was reset to {defaults[self.validator.internal_id]}"
+                        )
+                        value = defaults[self.validator.internal_id]
 
             # This attribute will tell the `Loader` to save this value in db
             self._save_marker = True

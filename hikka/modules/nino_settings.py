@@ -20,6 +20,7 @@ from telethon.tl.functions.messages import (
     GetDialogFiltersRequest,
     UpdateDialogFilterRequest,
 )
+from telethon.utils import get_display_name
 
 from .. import loader, main, utils
 from ..inline.types import InlineCall
@@ -38,11 +39,11 @@ def restart(*argv):
 
 
 @loader.tds
-class HikkaSettingsMod(loader.Module):
+class NinoSettingsMod(loader.Module):
     """Advanced settings for Hikka Userbot"""
 
     strings = {
-        "name": "HikkaSettings",
+        "name": "NinoSettings",
         "watchers": "👀 <b>Watchers:</b>\n\n<b>{}</b>",
         "mod404": "🚫 <b>Watcher {} not found</b>",
         "disabled": "👀 <b>Watcher {} is now <u>disabled</u></b>",
@@ -64,6 +65,8 @@ class HikkaSettingsMod(loader.Module):
         "close_menu": "😌 Close menu",
         "download_btn": "✅ Download via button",
         "no_download_btn": "🚫 Download via button",
+        "suggest_subscribe": "✅ Suggest subscribe to channel",
+        "do_not_suggest_subscribe": "🚫 Suggest subscribe to channel",
         "private_not_allowed": "🚫 <b>This command must be executed in chat</b>",
         "nonick_warning": (
             "Warning! You enabled NoNick with default prefix! "
@@ -87,6 +90,10 @@ class HikkaSettingsMod(loader.Module):
         "uninstall": "😢 <b>Uninstalling Hikka...</b>",
         "uninstalled": "😢 <b>Hikka uninstalled. Web interface is still active, you can add another account</b>",
         "logs_cleared": "🗑 <b>Logs cleared</b>",
+        "cmd_nn_list": "🔰 <b>NoNick is enabled for these commands:</b>\n\n{}",
+        "user_nn_list": "🔰 <b>NoNick is enabled for these users:</b>\n\n{}",
+        "chat_nn_list": "🔰 <b>NoNick is enabled for these chats:</b>\n\n{}",
+        "nothing": "🔰 <b>Nothing to show...</b>",
     }
 
     strings_ru = {
@@ -99,18 +106,20 @@ class HikkaSettingsMod(loader.Module):
         "no_cmd": "🔰 <b>Укажи команду, для которой надо включить\\выключить NoNick</b>",
         "cmd_nn": "🔰 <b>Состояние NoNick для </b><code>{}</code><b>: {}</b>",
         "cmd404": "🔰 <b>Команда не найдена</b>",
-        "inline_settings": "⚙️ <b>Здесь можно управлять настройками Hikka</b>",
-        "confirm_update": "🧭 <b>Подтвердите обновление. Юзербот будет перезагружен</b>",
-        "confirm_restart": "🔄 <b>Подтвердите перезагрузку</b>",
+        "inline_settings": "🌐️ <b>Здесь можно управлять настройками Nink</b>",
+        "confirm_update": "⚡ <b>Подтвердите обновление. Юзербот будет перезагружен</b>",
+        "confirm_restart": "🔅 <b>Подтвердите перезагрузку</b>",
         "suggest_fs": "✅ Предлагать сохранение модулей",
         "do_not_suggest_fs": "🚫 Предлагать сохранение модулей",
         "use_fs": "✅ Всегда сохранять модули",
         "do_not_use_fs": "🚫 Всегда сохранять модули",
-        "btn_restart": "🔄 Перезагрузка",
-        "btn_update": "🧭 Обновление",
-        "close_menu": "😌 Закрыть меню",
+        "btn_restart": "🔆 Перезагрузка",
+        "btn_update": "⚡ Обновление",
+        "close_menu": "◾ Закрыть меню",
         "download_btn": "✅ Скачивать кнопкой",
         "no_download_btn": "🚫 Скачивать кнопкой",
+        "suggest_subscribe": "✅ Предлагать подписку на канал",
+        "do_not_suggest_subscribe": "🚫 Предлагать подписку на канал",
         "private_not_allowed": "🚫 <b>Эту команду нужно выполнять в чате</b>",
         "_cmd_doc_watchers": "Показать список смотрителей",
         "_cmd_doc_watcherbl": "<модуль> - Включить\\выключить смотритель в чате",
@@ -132,21 +141,25 @@ class HikkaSettingsMod(loader.Module):
         ),
         "reply_required": "🚫 <b>Ответь на сообщение пользователя, для которого нужно включить NoNick</b>",
         "deauth_confirm": (
-            "⚠️ <b>Это действие полностью удалит Hikka с этого аккаунта! Его нельзя отменить</b>\n\n"
-            "<i>- Все чаты, связанные с Hikka будут удалены\n"
-            "- Сессия Hikka будет сброшена\n"
-            "- Инлайн бот Hikka будет удален</i>"
+            "⚠️ <b>Это действие полностью удалит Nino с этого аккаунта! Его нельзя отменить</b>\n\n"
+            "<i>- Все чаты, связанные с Nino будут удалены\n"
+            "- Сессия Nino будет сброшена\n"
+            "- Инлайн бот Nino будет удален</i>"
         ),
-        "deauth_confirm_step2": "⚠️ <b>Ты точно уверен, что хочешь удалить Hikka?</b>",
+        "deauth_confirm_step2": "⚠️ <b>Ты точно уверен, что хочешь удалить Nino?</b>",
         "deauth_yes": "Я уверен",
         "deauth_no_1": "Я не уверен",
         "deauth_no_2": "Не точно",
         "deauth_no_3": "Нет",
         "deauth_cancel": "🚫 Отмена",
-        "deauth_confirm_btn": "😢 Уда1лить",
-        "uninstall": "😢 <b>Удаляю Hikka...</b>",
-        "uninstalled": "😢 <b>Hikka удалена. Веб-интерфейс все еще активен, можно добавить другие аккаунты!</b>",
+        "deauth_confirm_btn": "😢 Удалить",
+        "uninstall": "😢 <b>Удаляю nino...</b>",
+        "uninstalled": "😢 <b>Nino удалена. Веб-интерфейс все еще активен, можно добавить другие аккаунты!</b>",
         "logs_cleared": "🗑 <b>Логи очищены</b>",
+        "cmd_nn_list": "🔰 <b>NoNick включен для этих команд:</b>\n\n{}",
+        "user_nn_list": "🔰 <b>NoNick включен для этих пользователей:</b>\n\n{}",
+        "chat_nn_list": "🔰 <b>NoNick включен для этих чатов:</b>\n\n{}",
+        "nothing": "🔰 <b>Нечего показывать...</b>",
     }
 
     def get_watchers(self) -> tuple:
@@ -243,7 +256,7 @@ class HikkaSettingsMod(loader.Module):
                             *[
                                 {
                                     "text": self.strings(f"deauth_no_{i}"),
-                                    "callback": self.inline__close,
+                                    "action": "close",
                                 }
                                 for i in range(1, 4)
                             ],
@@ -257,14 +270,14 @@ class HikkaSettingsMod(loader.Module):
                 [
                     {
                         "text": self.strings("deauth_cancel"),
-                        "callback": self.inline__close,
+                        "action": "close",
                     }
                 ]
             ],
         )
 
-    async def uninstall_hikkacmd(self, message: Message):
-        """Uninstall Hikka"""
+    async def delete_ninocmd(self, message: Message):
+        """Uninstall Nino"""
         await self.inline.form(
             self.strings("deauth_confirm"),
             message,
@@ -273,7 +286,7 @@ class HikkaSettingsMod(loader.Module):
                     "text": self.strings("deauth_confirm_btn"),
                     "callback": self._uninstall_confirm_step_2,
                 },
-                {"text": self.strings("deauth_cancel"), "callback": self.inline__close},
+                {"text": self.strings("deauth_cancel"), "action": "close"},
             ],
         )
 
@@ -501,6 +514,88 @@ class HikkaSettingsMod(loader.Module):
 
         self._db.set(main.__name__, "nonickcmds", nn)
 
+    async def nonickcmdscmd(self, message: Message):
+        """Returns the list of NoNick commands"""
+        if not self._db.get(main.__name__, "nonickcmds", []):
+            await utils.answer(message, self.strings("nothing"))
+            return
+
+        await utils.answer(
+            message,
+            self.strings("cmd_nn_list").format(
+                "\n".join(
+                    [
+                        f"▫️ <code>{self.get_prefix()}{cmd}</code>"
+                        for cmd in self._db.get(main.__name__, "nonickcmds", [])
+                    ]
+                )
+            ),
+        )
+
+    async def nonickuserscmd(self, message: Message):
+        """Returns the list of NoNick users"""
+        users = []
+        for user_id in self._db.get(main.__name__, "nonickusers", []).copy():
+            try:
+                user = await self._client.get_entity(user_id)
+            except Exception:
+                self._db.set(
+                    main.__name__,
+                    "nonickusers",
+                    list(
+                        set(self._db.get(main.__name__, "nonickusers", []))
+                        - set([user_id])
+                    ),
+                )
+                logger.warning(
+                    f"User {user_id} removed from nonickusers list", exc_info=True
+                )
+                continue
+
+            users += [
+                f'▫️ <b><a href="tg://user?id={user_id}">{utils.escape_html(get_display_name(user))}</a></b>'
+            ]
+
+        if not users:
+            await utils.answer(message, self.strings("nothing"))
+            return
+
+        await utils.answer(
+            message,
+            self.strings("user_nn_list").format("\n".join(users)),
+        )
+
+    async def nonickchatscmd(self, message: Message):
+        """Returns the list of NoNick chats"""
+        chats = []
+        for chat in self._db.get(main.__name__, "nonickchats", []):
+            try:
+                chat_entity = await self._client.get_entity(int(chat))
+            except Exception:
+                self._db.set(
+                    main.__name__,
+                    "nonickchats",
+                    list(
+                        set(self._db.get(main.__name__, "nonickchats", []))
+                        - set([chat])
+                    ),
+                )
+                logger.warning(f"Chat {chat} removed from nonickchats list")
+                continue
+
+            chats += [
+                f'▫️ <b><a href="{utils.get_entity_url(chat_entity)}">{utils.escape_html(get_display_name(chat_entity))}</a></b>'
+            ]
+
+        if not chats:
+            await utils.answer(message, self.strings("nothing"))
+            return
+
+        await utils.answer(
+            message,
+            self.strings("user_nn_list").format("\n".join(chats)),
+        )
+
     async def inline__setting(self, call: InlineCall, key: str, state: bool):
         self._db.set(main.__name__, key, state)
 
@@ -517,9 +612,6 @@ class HikkaSettingsMod(loader.Module):
             reply_markup=self._get_settings_markup(),
         )
 
-    async def inline__close(self, call: InlineCall):
-        await call.delete()
-
     async def inline__update(
         self,
         call: InlineCall,
@@ -530,7 +622,7 @@ class HikkaSettingsMod(loader.Module):
                 self.strings("confirm_update"),
                 reply_markup=[
                     {"text": "🪂 Update", "callback": self.inline__update},
-                    {"text": "🚫 Cancel", "callback": self.inline__close},
+                    {"text": "🚫 Cancel", "action": "close"},
                 ],
             )
             return
@@ -550,7 +642,7 @@ class HikkaSettingsMod(loader.Module):
                 self.strings("confirm_restart"),
                 reply_markup=[
                     {"text": "🔄 Restart", "callback": self.inline__restart},
-                    {"text": "🚫 Cancel", "callback": self.inline__close},
+                    {"text": "🚫 Cancel", "action": "close"},
                 ],
             )
             return
@@ -665,6 +757,27 @@ class HikkaSettingsMod(loader.Module):
                 ),
             ],
             [
+                (
+                    {
+                        "text": self.strings("suggest_subscribe"),
+                        "callback": self.inline__setting,
+                        "args": (
+                            "suggest_subscribe",
+                            False,
+                        ),
+                    }
+                    if self._db.get(main.__name__, "suggest_subscribe", True)
+                    else {
+                        "text": self.strings("do_not_suggest_subscribe"),
+                        "callback": self.inline__setting,
+                        "args": (
+                            "suggest_subscribe",
+                            True,
+                        ),
+                    }
+                ),
+            ],
+            [
                 {
                     "text": self.strings("btn_restart"),
                     "callback": self.inline__restart,
@@ -676,7 +789,7 @@ class HikkaSettingsMod(loader.Module):
                     "args": (True,),
                 },
             ],
-            [{"text": self.strings("close_menu"), "callback": self.inline__close}],
+            [{"text": self.strings("close_menu"), "action": "close"}],
         ]
 
     @loader.owner

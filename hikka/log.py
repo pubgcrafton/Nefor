@@ -27,14 +27,36 @@
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 import asyncio
+import inspect
 import logging
-import traceback
 import io
+from typing import Optional
+from logging.handlers import RotatingFileHandler
 
 from . import utils
 from ._types import Module
 
-_formatter = logging.Formatter
+_main_formatter = logging.Formatter(
+    fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    style="%",
+)
+_tg_formatter = logging.Formatter(
+    fmt="[%(levelname)s] %(name)s: %(message)s\n",
+    datefmt=None,
+    style="%",
+)
+
+rotating_handler = RotatingFileHandler(
+    filename="hikka.log",
+    mode="a",
+    maxBytes=10 * 1024 * 1024,
+    backupCount=1,
+    encoding="utf-8",
+    delay=0,
+)
+
+rotating_handler.setFormatter(_main_formatter)
 
 
 class TelegramLogsHandler(logging.Handler):
@@ -47,16 +69,17 @@ class TelegramLogsHandler(logging.Handler):
     first trimming handled then unused.
     """
 
-    def __init__(self, target, capacity: int):
+    def __init__(self, targets: list, capacity: int):
         super().__init__(0)
-        self.target = target
+        self.targets = targets
         self.capacity = capacity
         self.buffer = []
         self.handledbuffer = []
-        self.lvl = logging.WARNING  # Default loglevel
+        self.lvl = logging.NOTSET  # Default loglevel
         self._queue = []
-        self.tg_buff = ""
+        self.tg_buff = []
         self._mods = {}
+        self.force_send_all = False
 
     def install_tg_log(self, mod: Module):
         if getattr(self, "_task", False):
@@ -78,70 +101,98 @@ class TelegramLogsHandler(logging.Handler):
         """Return a list of logging entries"""
         return self.handledbuffer + self.buffer
 
-    def dumps(self, lvl: int = 0) -> list:
+    def dumps(self, lvl: Optional[int] = 0, client_id: Optional[int] = None) -> list:
         """Return all entries of minimum level as list of strings"""
         return [
-            self.target.format(record)
+            self.targets[0].format(record)
             for record in (self.buffer + self.handledbuffer)
             if record.levelno >= lvl
+            and (not record.hikka_caller or client_id == record.hikka_caller)
         ]
 
     async def sender(self):
-        self._queue = utils.chunks(utils.escape_html(self.tg_buff), 4096)
-        self.tg_buff = ""
+        self._queue = {
+            client_id: utils.chunks(
+                utils.escape_html(
+                    "".join(
+                        [
+                            item[0]
+                            for item in self.tg_buff
+                            if not item[1]
+                            or item[1] == client_id
+                            or self.force_send_all
+                        ]
+                    )
+                ),
+                4096,
+            )
+            for client_id in self._mods
+        }
 
-        if len(self._queue) > 5:
-            for mod in self._mods.values():
-                file = io.BytesIO("".join(self._queue).encode("utf-8"))
+        self.tg_buff = []
+
+        for client_id in self._mods:
+            if client_id not in self._queue:
+                continue
+
+            if len(self._queue[client_id]) > 5:
+                file = io.BytesIO("".join(self._queue[client_id]).encode("utf-8"))
                 file.name = "hikka-logs.txt"
                 file.seek(0)
-                await mod.inline.bot.send_document(
-                    mod._logchat,
+                await self._mods[client_id].inline.bot.send_document(
+                    self._mods[client_id]._logchat,
                     file,
                     parse_mode="HTML",
-                    caption="<b>🧳 Journals are too big to send as separate messages</b>",
+                    caption="<b>🧳 Journals are too big to be sent as separate messages</b>",
                 )
 
-            self._queue = []
-            return
+                self._queue[client_id] = []
+                continue
 
-        if not self._queue:
-            return
+            while self._queue[client_id]:
+                chunk = self._queue[client_id].pop(0)
 
-        chunk = self._queue.pop(0)
+                if not chunk:
+                    continue
 
-        if not chunk:
-            return
-
-        for mod in self._mods.values():
-            await mod.inline.bot.send_message(
-                mod._logchat,
-                f"<code>{chunk}</code>",
-                parse_mode="HTML",
-                disable_notification=True,
-            )
+                asyncio.ensure_future(
+                    self._mods[client_id].inline.bot.send_message(
+                        self._mods[client_id]._logchat,
+                        f"<code>{chunk}</code>",
+                        parse_mode="HTML",
+                        disable_notification=True,
+                    )
+                )
 
     def emit(self, record: logging.LogRecord):
-        if record.exc_info is not None:
-            exc = (
-                "\n🚫 Traceback:\n"
-                + "\n".join(
-                    [
-                        line
-                        for line in traceback.format_exception(*record.exc_info)[1:]
-                        if "hikka/dispatcher.py" not in line
-                        and "    await func(message)" not in line
-                    ]
-                ).strip()
+        try:
+            caller = next(
+                (
+                    frame_info.frame.f_locals["_hikka_client_id_logging_tag"]
+                    for frame_info in inspect.stack()
+                    if isinstance(
+                        getattr(getattr(frame_info, "frame", None), "f_locals", {}).get(
+                            "_hikka_client_id_logging_tag"
+                        ),
+                        int,
+                    )
+                ),
+                False,
             )
-        else:
-            exc = ""
+
+            assert isinstance(caller, int)
+        except Exception:
+            caller = None
+
+        record.hikka_caller = caller
 
         if record.levelno >= 20:
-            try:
-                self.tg_buff += f"[{record.levelname}] {record.name}: {str(record.msg) % record.args}{exc}\n"
-            except TypeError:
-                self.tg_buff += f"[{record.levelname}] {record.name}: {record.msg}\n"
+            self.tg_buff += [
+                (
+                    ("🚫 " if record.exc_info else "") + _tg_formatter.format(record),
+                    caller,
+                )
+            ]
 
         if len(self.buffer) + len(self.handledbuffer) >= self.capacity:
             if self.handledbuffer:
@@ -155,7 +206,9 @@ class TelegramLogsHandler(logging.Handler):
             self.acquire()
             try:
                 for precord in self.buffer:
-                    self.target.handle(precord)
+                    for target in self.targets:
+                        if record.levelno >= target.level:
+                            target.handle(precord)
 
                 self.handledbuffer = (
                     self.handledbuffer[-(self.capacity - len(self.buffer)) :]
@@ -167,11 +220,13 @@ class TelegramLogsHandler(logging.Handler):
 
 
 def init():
-    formatter = _formatter(logging.BASIC_FORMAT, "")
     handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(_main_formatter)
     logging.getLogger().handlers = []
-    logging.getLogger().addHandler(TelegramLogsHandler(handler, 7000))
+    logging.getLogger().addHandler(
+        TelegramLogsHandler((handler, rotating_handler), 7000)
+    )
     logging.getLogger().setLevel(logging.NOTSET)
     logging.getLogger("telethon").setLevel(logging.WARNING)
     logging.getLogger("matplotlib").setLevel(logging.WARNING)

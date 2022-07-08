@@ -41,7 +41,6 @@ import sqlite3
 import sys
 from math import ceil
 from typing import Union
-import subprocess
 
 from telethon import TelegramClient, events
 from telethon.errors.rpcerrorlist import (
@@ -68,8 +67,6 @@ except ImportError:
     logging.exception("Unable to import web")
 else:
     web_available = True
-
-omit_log = False
 
 BASE_DIR = (
     os.path.normpath(os.path.join(utils.get_base_dir(), ".."))
@@ -182,15 +179,17 @@ def parse_arguments() -> dict:
     :returns: Dictionary with arguments
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--setup", "-s", action="store_true")
-    parser.add_argument("--port", dest="port", action="store", default=gen_port(), type=int)  # fmt: skip
+    parser.add_argument(
+        "--port", dest="port", action="store", default=gen_port(), type=int
+    )
     parser.add_argument("--phone", "-p", action="append")
     parser.add_argument("--token", "-t", action="append", dest="tokens")
     parser.add_argument("--heroku", action="store_true")
     parser.add_argument("--no-nickname", "-nn", dest="no_nickname", action="store_true")
     parser.add_argument("--hosting", "-lh", dest="hosting", action="store_true")
     parser.add_argument("--web-only", dest="web_only", action="store_true")
-    parser.add_argument("--no-web", dest="disable_web", action="store_false")
+    parser.add_argument("--no-web", dest="disable_web", action="store_true")
+    parser.add_argument("--no-proxy-pass", dest="proxypass", action="store_false")
     parser.add_argument(
         "--data-root",
         dest="data_root",
@@ -280,6 +279,8 @@ def raise_auth():
 class Hikka:
     """Main userbot instance, which can handle multiple clients"""
 
+    omit_log = False
+
     def __init__(self):
         self.arguments = parse_arguments()
         self.loop = asyncio.get_event_loop()
@@ -300,7 +301,9 @@ class Hikka:
             and self.arguments.proxy_port is not None
             and self.arguments.proxy_secret is not None
         ):
-            logging.debug(f"Using proxy: {self.arguments.proxy_host}:{self.arguments.proxy_port}")  # fmt: skip
+            logging.debug(
+                f"Using proxy: {self.arguments.proxy_host}:{self.arguments.proxy_port}"
+            )
             self.proxy, self.conn = (
                 (
                     self.arguments.proxy_host,
@@ -360,7 +363,7 @@ class Hikka:
 
     def _init_web(self):
         """Initialize web"""
-        if web_available and not getattr(self.arguments, "disable_web", False):
+        if not web_available or getattr(self.arguments, "disable_web", False):
             self.web = None
             return
 
@@ -377,8 +380,13 @@ class Hikka:
             if self.arguments.no_auth:
                 return
             if self.web:
-                self.loop.run_until_complete(self.web.start(self.arguments.port))
-                self._web_banner()
+                self.loop.run_until_complete(
+                    self.web.start(
+                        self.arguments.port,
+                        not getattr(self.arguments, "proxypass", False),
+                    )
+                )
+                self.loop.run_until_complete(self._web_banner())
                 self.loop.run_until_complete(self.web.wait_for_api_token_setup())
                 self.api_token = self.web.api_token
             else:
@@ -386,7 +394,12 @@ class Hikka:
                 importlib.invalidate_caches()
                 self._get_api_token()
 
-    async def save_client_session(self, client: TelegramClient):
+    async def save_client_session(
+        self,
+        client: TelegramClient,
+        heroku_config: "ConfigVars" = None,  # type: ignore
+        heroku_app: "App" = None,  # type: ignore
+    ):
         if hasattr(client, "_tg_id"):
             telegram_id = client._tg_id
         else:
@@ -413,8 +426,9 @@ class Hikka:
         if "DYNO" not in os.environ:
             session.save()
         else:
-            config = heroku.get_app(os.environ["heroku_api_token"])[1]
-            config["hikka_session"] = session.save()
+            heroku_config["hikka_session"] = session.save()
+            heroku_app.update_config(heroku_config)
+            # Heroku will restart the app after updating config
 
         client.session = session
         # Set db attribute to this client in order to save
@@ -422,17 +436,10 @@ class Hikka:
         client.hikka_db = database.Database(client)
         await client.hikka_db.init()
 
-    def _web_banner(self):
+    async def _web_banner(self):
         """Shows web banner"""
         print("✅ Web mode ready for configuration")
-        ip = (
-            "127.0.0.1"
-            if "DOCKER" not in os.environ
-            else subprocess.run(
-                ["hostname", "-i"], stdout=subprocess.PIPE, check=True
-            ).stdout
-        )
-        print(f"🌐 Please visit http://{ip}:{self.web.port}")
+        print(f"🌐 Please visit {self.web.url}")
 
     async def wait_for_web_auth(self, token: str):
         """Waits for web auth confirmation in Telegram"""
@@ -460,7 +467,7 @@ class Hikka:
                     connection=self.conn,
                     proxy=self.proxy,
                     connection_retries=None,
-                    device_model="Hikka",
+                    device_model="Nino",
                 )
 
                 client.start(phone)
@@ -474,8 +481,13 @@ class Hikka:
             return True
 
         if not self.web.running.is_set():
-            self.loop.run_until_complete(self.web.start(self.arguments.port))
-            self._web_banner()
+            self.loop.run_until_complete(
+                self.web.start(
+                    self.arguments.port,
+                    not getattr(self.arguments, "proxypass", False),
+                )
+            )
+            asyncio.ensure_future(self._web_banner())
 
         self.loop.run_until_complete(self.web.wait_for_clients_setup())
 
@@ -495,7 +507,7 @@ class Hikka:
                     connection=self.conn,
                     proxy=self.proxy,
                     connection_retries=None,
-                    device_model="Hikka",
+                    device_model="Nino",
                 )
 
                 client.start(phone=raise_auth if self.web else lambda: input("Phone: "))
@@ -539,12 +551,12 @@ class Hikka:
         """Wrapper around amain"""
         async with client:
             first = True
+            client._tg_id = (await client.get_me()).id
             while await self.amain(first, client):
                 first = False
 
     async def _badge(self, client):
         """Call the badge in shell"""
-        global omit_log
         try:
             import git
 
@@ -567,15 +579,20 @@ class Hikka:
                      • Platform: {_platform}
                      """
 
-            if not omit_log:
+            if not self.omit_log:
                 print(logo1)
-                logging.info(
-                    "🌘 Hikka started\n"
-                    f"GitHub commit SHA: {build[:7]} ({upd})\n"
-                    f"Hikka version: {'.'.join(list(map(str, list(__version__))))}\n"
-                    f"Platform: {_platform}"
+                web_url = (
+                    f"🌐 Web url: {self.web.url}\n"
+                    if self.web and hasattr(self.web, "url")
+                    else ""
                 )
-                omit_log = True
+                logging.info(
+                    f"😺 Nino {'.'.join(list(map(str, list(__version__))))} started\n"
+                    f"🔏 GitHub commit SHA: {build[:7]} ({upd})\n"
+                    f"{web_url}"
+                    f"{_platform}"
+                )
+                self.omit_log = True
 
             print(f"- Started for {client._tg_id} -")
         except Exception:
@@ -610,12 +627,9 @@ class Hikka:
 
     async def amain(self, first, client):
         """Entrypoint for async init, run once for each user"""
-        setup = self.arguments.setup
         web_only = self.arguments.web_only
         client.parse_mode = "HTML"
         await client.start()
-
-        client._tg_id = (await client.get_me()).id
 
         db = database.Database(client)
         await db.init()
@@ -675,7 +689,7 @@ class Hikka:
                 "This process might take several minutes, be patient."
             )
 
-            app = heroku.publish(key, self.api_token)
+            app = heroku.publish(key, api_token=self.api_token)
             print(
                 "Installed to heroku successfully!\n"
                 "🎉 App URL: {}".format(app.web_url)

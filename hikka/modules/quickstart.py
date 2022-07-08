@@ -26,29 +26,30 @@ imgs = [
     "https://i2.wp.com/metanorn.net/wp-content/uploads/2011/08/NS3-04b.gif",
 ]
 
-TEXT = """🌘🇬🇧 <b>Hello.</b> You've just installed <b>Hikka</b> userbot.
+TEXT = """😺🇬🇧 <b>Hello.</b> You've just installed <b>Nino</b> userbot.
 
 ❓ <b>Need help?</b> Feel free to join our support chat. We help <b>everyone</b>.
 
 📼 <b>Official modules sources:</b>
-▫️ @hikarimods
-▫️ @hikarimods_database
+▫️ @nino_mods
+▫️ @umodules
 ▫️ <code>.dlmod</code>
 
 ✅ <b>Trusted modules' developers:</b>
 ▫️ @morisummermods
 ▫️ @cakestwix_mods
 
+🌐 Поменяй язык на русский
 """
 
 
-TEXT_RU = """🌘🇷🇺 <b>Привет.</b> Твой юзербот <b>Hikka</b> установлен.
+TEXT_RU = """😺🇷🇺 <b>Привет.</b> Твой юзербот <b>Nino</b> установлен.
 
 ❓ <b>Нужна помощь?</b> Вступай в наш чат поддержки. Мы помогаем <b>всем</b>.
 
 📼 <b>Официальные источники модулей:</b>
-▫️ @hikarimods
-▫️ @hikarimods_database
+▫️ @nino_mods
+▫️ @umodules
 ▫️ <code>.dlmod</code>
 
 ✅ <b>Доверенные разработчики модулей:</b>
@@ -57,8 +58,12 @@ TEXT_RU = """🌘🇷🇺 <b>Привет.</b> Твой юзербот <b>Hikka<
 """
 
 if "OKTETO" in os.environ:
-    TEXT += "☁️ <b>Your userbot is installed on Okteto</b>. Don't worry, you will get some notifications from @WebpageBot. Do not block him."
-    TEXT_RU += "☁️ <b>Твой юзербот установлен на Okteto</b>. Не пугайся, когда будешь получать уведомления от @WebpageBot и не блокируй его."
+    TEXT += "☁️ <b>Your userbot is installed on Okteto</b>. You will get notifications from @WebpageBot. Do not block him."
+    TEXT_RU += "☁️ <b>Твой юзербот установлен на Okteto</b>. Ты будешь получать уведомления от @WebpageBot. Не блокируй его."
+
+if "DYNO" in os.environ:
+    TEXT += "♓️ <b>Your userbot is installed on Heroku</b>. You will get notifications from @WebpageBot. Do not block him."
+    TEXT_RU += "♓️ <b>Твой юзербот установлен на Heroku</b>. Ты будешь получать уведомления от @WebpageBot. Не блокируй его."
 
 
 @loader.tds
@@ -70,9 +75,12 @@ class QuickstartMod(loader.Module):
     async def client_ready(self, client, db):
         self._db = db
 
+        if db.get("hikka", "disable_quickstart", False):
+            raise loader.SelfUnload
+
         mark = self.inline.generate_markup(
             [
-                [{"text": "🥷 Support chat", "url": "https://t.me/hikka_talks"}],
+                [{"text": "🥷 Support chat", "url": "https://t.me/nino_talks"}],
                 [{"text": "🇷🇺 Русский", "data": "hikka_qs_sw_lng_ru"}],
             ]
         )
@@ -94,7 +102,7 @@ class QuickstartMod(loader.Module):
         if lang == "ru":
             mark = self.inline.generate_markup(
                 [
-                    [{"text": "🥷 Чат помощи", "url": "https://t.me/hikka_talks"}],
+                    [{"text": "🥷 Чат помощи", "url": "https://t.me/nino_talks"}],
                     [{"text": "🇬🇧 English", "data": "hikka_qs_sw_lng_en"}],
                 ]
             )
@@ -113,7 +121,7 @@ class QuickstartMod(loader.Module):
         elif lang == "en":
             mark = self.inline.generate_markup(
                 [
-                    [{"text": "🥷 Support chat", "url": "https://t.me/hikka_talks"}],
+                    [{"text": "🥷 Support chat", "url": "https://t.me/nino_talks"}],
                     [{"text": "🇷🇺 Русский", "data": "hikka_qs_sw_lng_ru"}],
                 ]
             )

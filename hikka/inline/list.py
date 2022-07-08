@@ -1,8 +1,10 @@
 import asyncio
+import contextlib
+import copy
 import functools
 import logging
 import time
-from types import FunctionType
+import traceback
 from typing import List as _List
 from typing import Optional, Union
 
@@ -15,9 +17,11 @@ from aiogram.types import (
     InputTextMessageContent,
 )
 from aiogram.utils.exceptions import RetryAfter
-from telethon.tl.types import Message
 
-from .. import utils
+from telethon.tl.types import Message
+from telethon.errors.rpcerrorlist import ChatSendInlineForbiddenError
+
+from .. import utils, main
 from .types import InlineMessage, InlineUnit
 
 logger = logging.getLogger(__name__)
@@ -34,36 +38,33 @@ class List(InlineUnit):
         manual_security: Optional[bool] = False,
         disable_security: Optional[bool] = False,
         ttl: Optional[Union[int, bool]] = False,
-        on_unload: Optional[FunctionType] = None,
+        on_unload: Optional[callable] = None,
         silent: Optional[bool] = False,
-    ) -> Union[bool, str]:
+        custom_buttons: Optional[Union[_List[_List[dict]], _List[dict], dict]] = None,
+    ) -> Union[bool, InlineMessage]:
         """
-        Processes inline lists
-        Args:
-            message
-                Where to send list. Can be either `Message` or `int`
-            strings
-                List of strings, which should become inline list
-            force_me
-                Either this list buttons must be pressed only by owner scope or no
-            always_allow
-                Users, that are allowed to press buttons in addition to previous rules
-            ttl
-                Time, when the list is going to be unloaded. Unload means, that the list
-                will become unusable. Pay attention, that ttl can't
-                be bigger, than default one (1 day) and must be either `int` or `False`
-            on_unload
-                Callback, called when list is unloaded and/or closed. You can clean up trash
-                or perform another needed action
-            manual_security
-                By default, Hikka will try to inherit inline buttons security from the caller (command)
-                If you want to avoid this, pass `manual_security=True`
-            disable_security
-                By default, Hikka will try to inherit inline buttons security from the caller (command)
-                If you want to disable all security checks on this list in particular, pass `disable_security=True`
-            silent
-                Whether the list must be sent silently (w/o "Loading inline list..." message)
+        Send inline list to chat
+        :param message: Where to send list. Can be either `Message` or `int`
+        :param strings: List of strings, which should become inline list
+        :param force_me: Either this list buttons must be pressed only by owner scope or no
+        :param always_allow: Users, that are allowed to press buttons in addition to previous rules
+        :param ttl: Time, when the list is going to be unloaded. Unload means, that the list
+                    will become unusable. Pay attention, that ttl can't
+                    be bigger, than default one (1 day) and must be either `int` or `False`
+        :param on_unload: Callback, called when list is unloaded and/or closed. You can clean up trash
+                          or perform another needed action
+        :param manual_security: By default, Hikka will try to inherit inline buttons security from the caller (command)
+                                If you want to avoid this, pass `manual_security=True`
+        :param disable_security: By default, Hikka will try to inherit inline buttons security from the caller (command)
+                                 If you want to disable all security checks on this list in particular, pass `disable_security=True`
+        :param silent: Whether the list must be sent silently (w/o "Loading inline list..." message)
+        :param custom_buttons: Custom buttons to add above native ones
+        :return: If list is sent, returns :obj:`InlineMessage`, otherwise returns `False`
         """
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self._client._tg_id)
+
+        custom_buttons = self._validate_markup(custom_buttons)
 
         if not isinstance(manual_security, bool):
             logger.error("Invalid type for `manual_security`")
@@ -104,21 +105,15 @@ class List(InlineUnit):
             logger.error("Invalid type for `ttl`")
             return False
 
-        if isinstance(ttl, int) and (ttl > self._markup_ttl or ttl < 10):
-            ttl = self._markup_ttl
-            logger.debug("Defaulted ttl, because it breaks out of limits")
-
-        unit_uid = utils.rand(16)
-        btn_call_data = {key: utils.rand(10) for key in {"back", "next", "close"}}
+        unit_id = utils.rand(16)
 
         perms_map = self._find_caller_sec_map() if not manual_security else None
 
-        self._units[unit_uid] = {
+        self._units[unit_id] = {
             "type": "list",
             "chat": None,
             "message_id": None,
-            "uid": unit_uid,
-            "btn_call_data": btn_call_data,
+            "uid": unit_id,
             "current_index": 0,
             "strings": strings,
             "future": asyncio.Event(),
@@ -129,12 +124,21 @@ class List(InlineUnit):
             **({"always_allow": always_allow} if always_allow else {}),
             **({"perms_map": perms_map} if perms_map else {}),
             **({"message": message} if isinstance(message, Message) else {}),
+            **({"custom_buttons": custom_buttons} if custom_buttons else {}),
         }
 
-        default_map = {
+        btn_call_data = utils.rand(10)
+
+        self._custom_map[btn_call_data] = {
+            "handler": asyncio.coroutine(
+                functools.partial(
+                    self._list_page,
+                    unit_id=unit_id,
+                )
+            ),
             **(
-                {"ttl": self._units[unit_uid]["ttl"]}
-                if "ttl" in self._units[unit_uid]
+                {"ttl": self._units[unit_id]["ttl"]}
+                if "ttl" in self._units[unit_id]
                 else {}
             ),
             **({"always_allow": always_allow} if always_allow else {}),
@@ -144,66 +148,57 @@ class List(InlineUnit):
             **({"message": message} if isinstance(message, Message) else {}),
         }
 
-        self._custom_map[btn_call_data["back"]] = {
-            "handler": asyncio.coroutine(
-                functools.partial(
-                    self._list_back,
-                    btn_call_data=btn_call_data,
-                    unit_uid=unit_uid,
-                )
-            ),
-            **default_map,
-        }
-
-        self._custom_map[btn_call_data["close"]] = {
-            "handler": asyncio.coroutine(
-                functools.partial(
-                    self._delete_unit_message,
-                    unit_uid=unit_uid,
-                )
-            ),
-            **default_map,
-        }
-
-        self._custom_map[btn_call_data["next"]] = {
-            "handler": asyncio.coroutine(
-                functools.partial(
-                    self._list_next,
-                    btn_call_data=btn_call_data,
-                    unit_uid=unit_uid,
-                )
-            ),
-            **default_map,
-        }
-
         if isinstance(message, Message) and not silent:
             try:
                 status_message = await (
                     message.edit if message.out else message.respond
-                )("🌘 <b>Loading inline list...</b>")
+                )("▫️ <b>Loading inline list...</b>")
             except Exception:
                 status_message = None
         else:
             status_message = None
 
+        async def answer(msg: str):
+            nonlocal message
+            if isinstance(message, Message):
+                await (message.edit if message.out else message.respond)(msg)
+            else:
+                await self._client.send_message(message, msg)
+
         try:
-            q = await self._client.inline_query(self.bot_username, unit_uid)
+            q = await self._client.inline_query(self.bot_username, unit_id)
             m = await q[0].click(
                 utils.get_chat_id(message) if isinstance(message, Message) else message,
                 reply_to=message.reply_to_msg_id
                 if isinstance(message, Message)
                 else None,
             )
+        except ChatSendInlineForbiddenError:
+            await answer("🚫 <b>You can't send inline units in this chat</b>")
         except Exception:
-            logger.exception("Error sending inline list")
-            del self._units[unit_uid]
-            return
+            logger.exception("Can't send list")
 
-        await self._units[unit_uid]["future"].wait()
-        del self._units[unit_uid]["future"]
+            if not self._db.get(main.__name__, "inlinelogs", True):
+                msg = f"<b>🚫 List invoke failed! More info in logs</b>"
+            else:
+                exc = traceback.format_exc()
+                # Remove `Traceback (most recent call last):`
+                exc = "\n".join(exc.splitlines()[1:])
+                msg = (
+                    f"<b>🚫 List invoke failed!</b>\n\n"
+                    f"<b>🧾 Logs:</b>\n<code>{exc}</code>"
+                )
 
-        self._units[unit_uid]["chat"] = utils.get_chat_id(m)
-        self._units[unit_uid]["message_id"] = m.id
+            del self._units[unit_id]
+            await answer(msg)
+
+            return False
+
+        await self._units[unit_id]["future"].wait()
+        del self._units[unit_id]["future"]
+
+        self._units[unit_id]["chat"] = utils.get_chat_id(m)
+        self._units[unit_id]["message_id"] = m.id
 
         if isinstance(message, Message) and message.out:
             await message.delete()
@@ -211,62 +206,33 @@ class List(InlineUnit):
         if status_message and not message.out:
             await status_message.delete()
 
-        return InlineMessage(self, unit_uid, self._units[unit_uid]["inline_message_id"])
+        return InlineMessage(self, unit_id, self._units[unit_id]["inline_message_id"])
 
-    async def _list_back(
+    async def _list_page(
         self,
         call: CallbackQuery,
-        btn_call_data: _List[str] = None,
-        unit_uid: str = None,
+        page: Union[int, str],
+        unit_id: str = None,
     ):
-        if not self._units[unit_uid]["current_index"]:
-            await call.answer("No way back", show_alert=True)
+        if page == "close":
+            await self._delete_unit_message(call, unit_id=unit_id)
             return
 
-        self._units[unit_uid]["current_index"] -= 1
-
-        try:
-            await self.bot.edit_message_text(
-                inline_message_id=call.inline_message_id,
-                text=self._units[unit_uid]["strings"][
-                    self._units[unit_uid]["current_index"]
-                ],
-                reply_markup=self._list_markup(unit_uid),
-            )
-            await call.answer()
-        except RetryAfter as e:
-            await call.answer(
-                f"Got FloodWait. Wait for {e.timeout} seconds",
-                show_alert=True,
-            )
-        except Exception:
-            logger.exception("Exception while trying to edit list")
-            await call.answer("Error occurred", show_alert=True)
-            return
-
-    async def _list_next(
-        self,
-        call: CallbackQuery,
-        btn_call_data: _List[str] = None,
-        func: FunctionType = None,
-        unit_uid: str = None,
-    ):
-        self._units[unit_uid]["current_index"] += 1
-        # If we exceeded limit in list
-        if self._units[unit_uid]["current_index"] >= len(
-            self._units[unit_uid]["strings"]
+        if self._units[unit_id]["current_index"] < 0 or page >= len(
+            self._units[unit_id]["strings"]
         ):
-            await call.answer("No entries left...", show_alert=True)
-            self._units[unit_uid]["current_index"] -= 1
+            await call.answer("Can't go to this page", show_alert=True)
             return
+
+        self._units[unit_id]["current_index"] = page
 
         try:
             await self.bot.edit_message_text(
                 inline_message_id=call.inline_message_id,
-                text=self._units[unit_uid]["strings"][
-                    self._units[unit_uid]["current_index"]
+                text=self._units[unit_id]["strings"][
+                    self._units[unit_id]["current_index"]
                 ],
-                reply_markup=self._list_markup(unit_uid),
+                reply_markup=self._list_markup(unit_id),
             )
             await call.answer()
         except RetryAfter as e:
@@ -274,44 +240,23 @@ class List(InlineUnit):
                 f"Got FloodWait. Wait for {e.timeout} seconds",
                 show_alert=True,
             )
-            return
         except Exception:
             logger.exception("Exception while trying to edit list")
             await call.answer("Error occurred", show_alert=True)
             return
 
-    def _list_markup(self, unit_uid: str) -> InlineKeyboardMarkup:
-        """Converts `btn_call_data` into a aiogram markup"""
-        markup = InlineKeyboardMarkup()
-        markup.add(
-            *(
-                [
-                    InlineKeyboardButton(
-                        f"⏪ [{self._units[unit_uid]['current_index']} / {len(self._units[unit_uid]['strings'])}]",
-                        callback_data=self._units[unit_uid]["btn_call_data"]["back"],
-                    )
-                ]
-                if self._units[unit_uid]["current_index"] > 0
-                else []
-            ),
-            InlineKeyboardButton(
-                "❌",
-                callback_data=self._units[unit_uid]["btn_call_data"]["close"],
-            ),
-            *(
-                [
-                    InlineKeyboardButton(
-                        f"⏩ [{self._units[unit_uid]['current_index'] + 2} / {len(self._units[unit_uid]['strings'])}]",
-                        callback_data=self._units[unit_uid]["btn_call_data"]["next"],
-                    ),
-                ]
-                if self._units[unit_uid]["current_index"]
-                < len(self._units[unit_uid]["strings"]) - 1
-                else []
-            ),
+    def _list_markup(self, unit_id: str) -> InlineKeyboardMarkup:
+        """Generates aiogram markup for `list`"""
+        callback = functools.partial(self._list_page, unit_id=unit_id)
+        return self.generate_markup(
+            self._units[unit_id].get("custom_buttons", [])
+            + self.build_pagination(
+                callback=callback,
+                total_pages=len(self._units[unit_id]["strings"]),
+                unit_id=unit_id,
+            )
+            + [[{"text": "▪️ Close", "callback": callback, "args": ("close",)}]],
         )
-
-        return markup
 
     async def _list_inline_handler(self, inline_query: InlineQuery):
         for unit in self._units.copy().values():

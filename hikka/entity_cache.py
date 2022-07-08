@@ -1,3 +1,4 @@
+import copy
 import time
 import asyncio
 import logging
@@ -20,7 +21,7 @@ def hashable(value):
 class CacheRecord:
     def __init__(
         self,
-        hashable_entity: "Hashable",  # noqa: F821
+        hashable_entity: "Hashable",  # type: ignore
         resolved_entity: EntityLike,
     ):
         self.entity = resolved_entity
@@ -49,15 +50,21 @@ def install_entity_caching(client: TelegramClient):
     old = client.get_entity
 
     async def new(entity: EntityLike):
+        # Will be used to determine, which client caused logging messages
+        # parsed via inspect.stack()
+        _hikka_client_id_logging_tag = copy.copy(client._tg_id)  # skipcq
+
         if not hashable(entity):
             try:
                 hashable_entity = next(
                     getattr(entity, attr)
                     for attr in {"user_id", "channel_id", "chat_id", "id"}
-                    if hasattr(entity, attr)
+                    if getattr(entity, attr, None)
                 )
             except StopIteration:
-                logger.debug(f"Can't parse hashable from {entity=}, using legacy resolve")
+                logger.debug(
+                    f"Can't parse hashable from {entity=}, using legacy resolve"
+                )
                 return await client.get_entity(entity)
         else:
             hashable_entity = entity
@@ -75,12 +82,14 @@ def install_entity_caching(client: TelegramClient):
             client._hikka_cache[hashable_entity] = cache_record
             logger.debug(f"Saved {hashable_entity=} to cache")
 
-            if hasattr(resolved_entity, "id"):
+            if getattr(resolved_entity, "id", None):
                 logger.debug(f"Saved {resolved_entity.id=} to cache")
                 client._hikka_cache[resolved_entity.id] = cache_record
 
-            if hasattr(resolved_entity, "username"):
-                logger.debug(f"Saved @{resolved_entity.username=} to cache")
+            if getattr(resolved_entity, "username", None):
+                logger.debug(
+                    f"Saved resolved_entity.username @{resolved_entity.username} to cache"
+                )
                 client._hikka_cache[f"@{resolved_entity.username}"] = cache_record
 
         return resolved_entity
@@ -95,5 +104,6 @@ def install_entity_caching(client: TelegramClient):
             await asyncio.sleep(3)
 
     client.get_entity = new
+    client.force_get_entity = old
     asyncio.ensure_future(cleaner(client))
     logger.debug("Monkeypatched client with cacher")

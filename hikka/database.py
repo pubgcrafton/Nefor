@@ -20,9 +20,12 @@ except ImportError as e:
     if "DYNO" in os.environ:
         raise e
 
-    POSTGRE_AVAILABLE = False
-else:
-    POSTGRE_AVAILABLE = True
+try:
+    import redis
+except ImportError as e:
+    if "DYNO" in os.environ:
+        raise e
+
 
 from typing import Any, Union
 
@@ -51,6 +54,7 @@ class Database(dict):
     _assets = None
     _me = None
     _postgre = None
+    _redis = None
     _saving_task = None
 
     def __init__(self, client):
@@ -60,29 +64,65 @@ class Database(dict):
     def __repr__(self):
         return object.__repr__(self)
 
-    async def _postgre_save(self):
-        """Save database to postgresql"""
-        if not self._postgre:
-            return
-
-        await asyncio.sleep(5)
-
+    def _postgre_save_sync(self):
         self._postgre.execute(
             "DELETE FROM hikka WHERE id = %s; INSERT INTO hikka (id, data) VALUES (%s, %s);",
             (self._client._tg_id, self._client._tg_id, json.dumps(self)),
         )
         self._postgre.connection.commit()
 
+    def _redis_save_sync(self):
+        with self._redis.pipeline() as pipe:
+            pipe.set(
+                str(self._client._tg_id),
+                json.dumps(self, ensure_ascii=True),
+            )
+            pipe.execute()
+
+    async def remote_force_save(self) -> bool:
+        """Force save database to remote endpoint without waiting"""
+        if not self._postgre and not self._redis:
+            return False
+
+        if self._redis:
+            await utils.run_sync(self._redis_save_sync)
+            logger.debug("Published db to Redis")
+        elif self._postgre:
+            await utils.run_sync(self._postgre_save_sync)
+            logger.debug("Published db to PostgreSQL")
+
+        return True
+
+    async def _postgre_save(self) -> bool:
+        """Save database to postgresql"""
+        if not self._postgre:
+            return False
+
+        await asyncio.sleep(5)
+
+        await utils.run_sync(self._postgre_save_sync)
+
         logger.debug("Published db to PostgreSQL")
 
         self._saving_task = None
+        return True
+
+    async def _redis_save(self) -> bool:
+        """Save database to redis"""
+        if not self._redis:
+            return False
+
+        await asyncio.sleep(5)
+
+        await utils.run_sync(self._redis_save_sync)
+
+        logger.debug("Published db to Redis")
+
+        self._saving_task = None
+        return True
 
     async def postgre_init(self) -> bool:
         """Init postgresql database"""
-        if not POSTGRE_AVAILABLE:
-            logger.critical("Attempted to initialize postgresql database, but psycopg2 is not installed")  # fmt: skip
-            return False
-
         POSTGRE_URI = os.environ.get("DATABASE_URL") or main.get_config_key(
             "postgre_uri"
         )
@@ -96,47 +136,32 @@ class Database(dict):
         cur.execute("CREATE TABLE IF NOT EXISTS hikka (id integer, data text);")
         self._postgre = cur
 
+    async def redis_init(self) -> bool:
+        """Init redis database"""
+        REDIS_URI = os.environ.get("REDIS_URL") or main.get_config_key("redis_uri")
+
+        if not REDIS_URI:
+            return False
+
+        self._redis = redis.Redis.from_url(REDIS_URI)
+
     async def init(self):
         """Asynchronous initialization unit"""
-        if os.environ.get("DATABASE_URL") or main.get_config_key("postgre_uri"):
+        if os.environ.get("REDIS_URL") or main.get_config_key("redis_uri"):
+            await self.redis_init()
+        elif os.environ.get("DATABASE_URL") or main.get_config_key("postgre_uri"):
             await self.postgre_init()
 
         self._db_path = os.path.join(DATA_DIR, f"config-{self._client._tg_id}.json")
         self.read()
 
         try:
-            channel_entity = await (
-                dialog.entity
-                async for dialog in self._client.iter_dialogs(
-                    None,
-                    ignore_migrated=True,
-                )
-                if (
-                    dialog.name
-                    in {f"hikka-{self._client._tg_id}-assets", "hikka-assets"}
-                    and dialog.is_channel
-                    and dialog.entity.participants_count == 1
-                )
-            ).__anext__()
-
-            if channel_entity.title != "hikka-assets":
-                await self._client(EditTitleRequest(channel_entity, "hikka-assets"))
-                await utils.set_avatar(
-                    self._client,
-                    channel_entity,
-                    "https://raw.githubusercontent.com/hikariatama/assets/master/hikka-assets.png",
-                )
-                logger.info("Made legacy assets migration")
-        except Exception:
-            pass
-
-        try:
             self._assets, _ = await utils.asset_channel(
                 self._client,
-                "hikka-assets",
-                "🌆 Your Hikka assets will be stored here",
+                "nino-assets",
+                "🌐 Your Nino assets will be stored here",
                 archive=True,
-                avatar="https://raw.githubusercontent.com/hikariatama/assets/master/hikka-assets.png",
+                avatar="https://github.com/NinoZOOM/assets/raw/main/Nino-assets.png",
             )
         except ChannelsTooMuchError:
             self._assets = None
@@ -150,17 +175,32 @@ class Database(dict):
 
     def read(self):
         """Read database and stores it in self"""
-        if self._postgre:
+        if self._redis:
+            try:
+                self.update(
+                    **json.loads(
+                        self._redis.get(
+                            str(self._client._tg_id),
+                        ).decode(),
+                    )
+                )
+            except Exception:
+                logger.exception("Error reading redis database")
+            return
+        elif self._postgre:
             try:
                 self._postgre.execute(
                     "SELECT data FROM hikka WHERE id=%s;",
                     (self._client._tg_id,),
                 )
-                self.update(**json.loads(self._postgre.fetchall()[0][0]))
+                self.update(
+                    **json.loads(
+                        self._postgre.fetchall()[0][0],
+                    ),
+                )
             except Exception:
                 logger.exception("Error reading postgresql database")
-            else:
-                return
+            return
 
         try:
             with open(self._db_path, "r", encoding="utf-8") as f:
@@ -175,20 +215,26 @@ class Database(dict):
 
         for key, value in db.copy().items():
             if not isinstance(key, (str, int)):
-                logger.warning(f"DbAutoFix: Dropped {key=} , because it is not string or int")  # fmt: skip
+                logger.warning(
+                    f"DbAutoFix: Dropped {key=} , because it is not string or int"
+                )
                 continue
 
             if not isinstance(value, dict):
                 # If value is not a dict (module values), drop it,
                 # otherwise it may cause problems
                 del db[key]
-                logger.warning(f"DbAutoFix: Dropped {key=}, because it is non-dict {type(value)=}")  # fmt: skip
+                logger.warning(
+                    f"DbAutoFix: Dropped {key=}, because it is non-dict {type(value)=}"
+                )
                 continue
 
             for subkey in value:
                 if not isinstance(subkey, (str, int)):
                     del db[key][subkey]
-                    logger.warning(f"DbAutoFix: Dropped {subkey=} of db[{key}], because it is not string or int")  # fmt: skip
+                    logger.warning(
+                        f"DbAutoFix: Dropped {subkey=} of db[{key}], because it is not string or int"
+                    )
                     continue
 
         return True
@@ -222,7 +268,11 @@ class Database(dict):
         while len(self._revisions) > 15:
             self._revisions.pop()
 
-        if self._postgre:
+        if self._redis:
+            if not self._saving_task:
+                self._saving_task = asyncio.ensure_future(self._redis_save())
+            return True
+        elif self._postgre:
             if not self._saving_task:
                 self._saving_task = asyncio.ensure_future(self._postgre_save())
             return True
@@ -242,7 +292,7 @@ class Database(dict):
         returns asset_id as integer
         """
         if not self._assets:
-            raise NoAssetsChannel("Tried to save asset to non-existing asset channel")  # fmt: skip
+            raise NoAssetsChannel("Tried to save asset to non-existing asset channel")
 
         return (
             (await self._client.send_message(self._assets, message)).id
@@ -259,7 +309,9 @@ class Database(dict):
     async def fetch_asset(self, asset_id: int) -> Union[None, Message]:
         """Fetch previously saved asset by its asset_id"""
         if not self._assets:
-            raise NoAssetsChannel("Tried to fetch asset from non-existing asset channel")  # fmt: skip
+            raise NoAssetsChannel(
+                "Tried to fetch asset from non-existing asset channel"
+            )
 
         asset = await self._client.get_messages(self._assets, ids=[asset_id])
 

@@ -127,7 +127,7 @@ body {
 }
 
 .bg {
-    background: url(https://github.com/hikariatama/assets/raw/master/bg.png);
+    background: url(https://github.com/NinoZOOM/assets/blob/main/Nino-web.png);
     background-repeat: no-repeat;
     background-size: contain;
     width: 80vw;
@@ -161,6 +161,18 @@ body {
         width: 100vw;
         top: 0;
         height: 50vh;
+    }
+
+    .title {
+        height: auto;
+        line-height: auto;
+    }
+
+    .finish_block, .auth {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
 }
 
@@ -248,3 +260,8 @@ label {
     box-sizing: border-box;
     position: absolute;
 } 
+
+#installation_icon {
+    height: 200px;
+    margin-bottom: 35px;
+}

@@ -27,6 +27,7 @@
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 import asyncio
+import contextlib
 import functools
 import io
 import json
@@ -37,6 +38,7 @@ import re
 import shlex
 import string
 import time
+import inspect
 from datetime import timedelta
 from typing import Any, List, Optional, Tuple, Union
 from urllib.parse import urlparse
@@ -80,6 +82,8 @@ from telethon.tl.types import (
     PeerChat,
     PeerUser,
     User,
+    Chat,
+    UpdateNewChannelMessage,
 )
 
 from .inline.types import InlineCall, InlineMessage
@@ -280,12 +284,33 @@ def relocate_entities(
 async def answer(
     message: Union[Message, InlineCall, InlineMessage],
     response: str,
+    *,
+    reply_markup: Optional[Union[List[List[dict]], List[dict], dict]] = None,
     **kwargs,
 ) -> Union[InlineCall, InlineMessage, Message]:
     """Use this to give the response to a command"""
     # Compatibility with FTG\GeekTG
+
     if isinstance(message, list) and message:
         message = message[0]
+
+    if reply_markup is not None:
+        if not isinstance(reply_markup, (list, dict)):
+            raise ValueError("reply_markup must be a list or dict")
+
+        if reply_markup:
+            if isinstance(message, (InlineMessage, InlineCall)):
+                await message.edit(response, reply_markup)
+                return
+
+            reply_markup = message.client.loader.inline._normalize_markup(reply_markup)
+            result = await message.client.loader.inline.form(
+                response,
+                message=message if message.out else get_chat_id(message),
+                reply_markup=reply_markup,
+                **kwargs,
+            )
+            return result
 
     if isinstance(message, (InlineMessage, InlineCall)):
         await message.edit(response)
@@ -443,12 +468,24 @@ async def set_avatar(
     else:
         return False
 
-    await client(
+    res = await client(
         EditPhotoRequest(
             channel=peer,
             photo=await client.upload_file(f, file_name="photo.png"),
         )
     )
+
+    with contextlib.suppress(Exception):
+        await client.delete_messages(
+            peer,
+            message_ids=[
+                next(
+                    update
+                    for update in res.updates
+                    if isinstance(update, UpdateNewChannelMessage)
+                ).message.id
+            ],
+        )
 
     return True
 
@@ -904,7 +941,79 @@ def get_lang_flag(countrycode: str) -> str:
     return countrycode
 
 
+def get_entity_url(
+    entity: Union[User, Channel],
+    openmessage: Optional[bool] = False,
+) -> str:
+    """
+    Get link to object, if available
+    :param entity: Entity to get url of
+    :param openmessage: Use tg://openmessage link for users
+    :return: Link to object or empty string
+    """
+    return (
+        f"tg://user?id={entity.id}"
+        if isinstance(entity, User)
+        else (
+            f"tg://resolve?domain={entity.username}"
+            if getattr(entity, "username", None)
+            else ""
+        )
+    )
+
+
+async def get_message_link(
+    message: Message,
+    chat: Optional[Union[Chat, Channel]] = None,
+) -> str:
+    if message.is_private:
+        return (
+            f"tg://openmessage?user_id={get_chat_id(message)}&message_id={message.id}"
+        )
+
+    if not chat:
+        chat = await message.get_chat()
+
+    return (
+        f"https://t.me/{chat.username}/{message.id}"
+        if getattr(chat, "username", False)
+        else f"https://t.me/c/{chat.id}/{message.id}"
+    )
+
+
+def remove_html(text: str, escape: Optional[bool] = False) -> str:
+    """
+    Removes HTML tags from text
+    :param text: Text to remove HTML from
+    :param escape: Escape HTML
+    :return: Text without HTML
+    """
+    return (escape_html if escape else str)(
+        re.sub(
+            r"(<\/?a.*?>|<\/?b>|<\/?i>|<\/?u>|<\/?strong>|<\/?em>|<\/?code>|<\/?strike>|<\/?del>|<\/?pre.*?>)",
+            "",
+            text,
+        )
+    )
+
+
+def get_kwargs() -> dict:
+    """
+    Get kwargs of function, in which is called
+    :return: kwargs
+    """
+    # https://stackoverflow.com/a/65927265/19170642
+    frame = inspect.currentframe().f_back
+    keys, _, _, values = inspect.getargvalues(frame)
+    kwargs = {}
+    for key in keys:
+        if key != "self":
+            kwargs[key] = values[key]
+    return kwargs
+
+
 init_ts = time.perf_counter()
+
 
 # GeekTG Compatibility
 def get_git_info():
@@ -917,9 +1026,7 @@ def get_git_info():
 
     return [
         ver,
-        f"https://github.com/hikariatama/Hikka/commit/{ver}"
-        if ver
-        else "",
+        f"https://github.com/hikariatama/Hikka/commit/{ver}" if ver else "",
     ]
 
 
@@ -927,9 +1034,8 @@ def get_version_raw():
     """Get the version of the userbot"""
     # https://github.com/GeekTG/Friendly-Telegram/blob/master/friendly-telegram/utils.py#L128
     from . import version
+
     return ".".join(list(map(str, list(version.__version__))))
 
 
 get_platform_name = get_named_platform
-
-

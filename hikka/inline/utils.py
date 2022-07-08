@@ -1,10 +1,25 @@
 import asyncio
 import inspect
 import logging
-from types import FunctionType
-from typing import List, Union
+import contextlib
+import io
+import os
+from copy import deepcopy
+from typing import List, Optional, Union
+from urllib.parse import urlparse
+import functools
 
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaAnimation,
+    InputMediaDocument,
+    InputMediaAudio,
+    InputMediaPhoto,
+    InputMediaVideo,
+)
+
 from aiogram.utils.exceptions import (
     InvalidQueryID,
     MessageIdInvalid,
@@ -14,7 +29,7 @@ from aiogram.utils.exceptions import (
 
 from .. import utils
 from .._types import Module
-from .types import InlineUnit
+from .types import InlineUnit, InlineCall
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +58,30 @@ class Utils(InlineUnit):
         for row in map_:
             for button in row:
                 if not isinstance(button, dict):
-                    logger.error(f"Button {button} is not a `dict`, but `{type(button)}` in {map_}")  # fmt: skip
+                    logger.error(
+                        f"Button {button} is not a `dict`, but `{type(button)}` in {map_}"
+                    )
                     return None
+
+                if "callback" not in button:
+                    if button.get("action") == "close":
+                        button["callback"] = self._close_unit_handler
+
+                    if button.get("action") == "unload":
+                        button["callback"] = self._unload_unit_handler
+
+                    if button.get("action") == "answer":
+                        if not button.get("text"):
+                            logger.error(
+                                f"Button {button} has no `text` to answer with"
+                            )
+                            return None
+
+                        button["callback"] = functools.partial(
+                            self._answer_unit_handler,
+                            show_alert=button.get("show_alert", False),
+                            text=button["text"],
+                        )
 
                 if "callback" in button and "_callback_data" not in button:
                     button["_callback_data"] = utils.rand(30)
@@ -111,7 +148,8 @@ class Utils(InlineUnit):
                         line += [
                             InlineKeyboardButton(
                                 button["text"],
-                                switch_inline_query_current_chat=button["_switch_query"] + " ",  # fmt: skip
+                                switch_inline_query_current_chat=button["_switch_query"]
+                                + " ",
                             )
                         ]
                     elif "data" in button:
@@ -159,11 +197,20 @@ class Utils(InlineUnit):
 
     generate_markup = _generate_markup
 
+    async def _close_unit_handler(self, call: InlineCall):
+        await call.delete()
+
+    async def _unload_unit_handler(self, call: InlineCall):
+        await call.unload()
+
+    async def _answer_unit_handler(self, call: InlineCall, text: str, show_alert: bool):
+        await call.answer(text, show_alert=show_alert)
+
     async def check_inline_security(
         self,
         *,
-        func: FunctionType,
-        user: int,
+        func: callable,
+        user: int
     ) -> bool:
         """Checks if user with id `user` is allowed to run function `func`"""
         return await self._client.dispatcher.security.check(
@@ -172,7 +219,7 @@ class Utils(InlineUnit):
             message=None,
         )
 
-    def _find_caller_sec_map(self) -> Union[FunctionType, None]:
+    def _find_caller_sec_map(self) -> Union[callable, None]:
         try:
             for stack_entry in inspect.stack():
                 if hasattr(stack_entry, "function") and (
@@ -211,15 +258,21 @@ class Utils(InlineUnit):
         text: str,
         reply_markup: List[List[dict]] = None,
         *,
+        photo: Optional[str] = None,
+        file: Optional[str] = None,
+        video: Optional[str] = None,
+        audio: Optional[str] = None,
+        gif: Optional[str] = None,
+        mime_type: Optional[str] = None,
         force_me: Union[bool, None] = None,
         disable_security: Union[bool, None] = None,
         always_allow: Union[List[int], None] = None,
         disable_web_page_preview: bool = True,
         query: CallbackQuery = None,
-        unit_uid: str = None,
+        unit_id: str = None,
         inline_message_id: Union[str, None] = None,
     ):
-        """Do not edit or pass `self`, `query`, `unit_uid` params, they are for internal use only"""
+        """Do not edit or pass `self`, `query`, `unit_id` params, they are for internal use only"""
         if isinstance(reply_markup, (list, dict)):
             reply_markup = self._normalize_markup(reply_markup)
         elif reply_markup is None:
@@ -229,8 +282,50 @@ class Utils(InlineUnit):
             logger.error("Invalid type for `text`")
             return False
 
-        if unit_uid is not None and unit_uid in self._units:
-            unit = self._units[unit_uid]
+        if photo and (not isinstance(photo, str) or not utils.check_url(photo)):
+            logger.error("Invalid type for `photo`")
+            return False
+
+        if gif and (not isinstance(gif, str) or not utils.check_url(gif)):
+            logger.error("Invalid type for `gif`")
+            return False
+
+        if file and (
+            not isinstance(file, str, bytes, io.BytesIO)
+            or (isinstance(file, str) and not utils.check_url(file))
+        ):
+            logger.error("Invalid type for `file`")
+            return False
+
+        if file and not mime_type:
+            logger.error(
+                "You must pass `mime_type` along with `file` field\n"
+                "It may be either 'application/zip' or 'application/pdf'"
+            )
+            return False
+
+        if video and (not isinstance(video, str) or not utils.check_url(video)):
+            logger.error("Invalid type for `video`")
+            return False
+
+        if audio and (not isinstance(audio, str) or not utils.check_url(audio)):
+            logger.error("Invalid type for `audio`")
+            return False
+
+        media_params = [
+            photo is None,
+            gif is None,
+            file is None,
+            video is None,
+            audio is None,
+        ]
+
+        if media_params.count(False) > 1:
+            logger.error("You passed two or more exclusive parameters simultaneously")
+            return False
+
+        if unit_id is not None and unit_id in self._units:
+            unit = self._units[unit_id]
 
             unit["buttons"] = reply_markup
 
@@ -261,61 +356,96 @@ class Utils(InlineUnit):
             )
             return False
 
+        if all(media_params):
+            try:
+                await self.bot.edit_message_text(
+                    text,
+                    inline_message_id=inline_message_id,
+                    disable_web_page_preview=disable_web_page_preview,
+                    reply_markup=self.generate_markup(
+                        reply_markup
+                        if isinstance(reply_markup, list)
+                        else unit.get("buttons", [])
+                    ),
+                )
+            except MessageNotModified:
+                if query:
+                    try:
+                        await query.answer()
+                    except InvalidQueryID:
+                        pass  # Just ignore that error, bc we need to just
+                        # remove preloader from user's button, if message
+                        # was deleted
+            except RetryAfter as e:
+                logger.info(f"Sleeping {e.timeout}s on aiogram FloodWait...")
+                await asyncio.sleep(e.timeout)
+                return await self._edit_unit(**utils.get_kwargs())
+            except MessageIdInvalid:
+                with contextlib.suppress(Exception):
+                    await query.answer(
+                        "I should have edited some message, but it is deleted :("
+                    )
+
+            return
+
+        # If passed `photo` is gif
         try:
-            await self.bot.edit_message_text(
-                text,
+            path = urlparse(media).path
+            ext = os.path.splitext(path)[1]
+        except Exception:
+            ext = None
+
+        if photo is not None and ext in {".gif", ".mp4"}:
+            gif = deepcopy(photo)
+            photo = None
+
+        if file is not None:
+            media = InputMediaDocument(file, caption=text, parse_mode="HTML")
+        elif photo is not None:
+            media = InputMediaPhoto(photo, caption=text, parse_mode="HTML")
+        elif audio is not None:
+            media = InputMediaAudio(audio, caption=text, parse_mode="HTML")
+        elif video is not None:
+            media = InputMediaVideo(video, caption=text, parse_mode="HTML")
+        elif gif is not None:
+            media = InputMediaAnimation(gif, caption=text, parse_mode="HTML")
+
+        try:
+            await self.bot.edit_message_media(
                 inline_message_id=inline_message_id,
-                disable_web_page_preview=disable_web_page_preview,
+                media=media,
                 reply_markup=self.generate_markup(
                     reply_markup
                     if isinstance(reply_markup, list)
                     else unit.get("buttons", [])
                 ),
             )
-        except MessageNotModified:
-            if query:
-                try:
-                    await query.answer()
-                except InvalidQueryID:
-                    pass  # Just ignore that error, bc we need to just
-                    # remove preloader from user's button, if message
-                    # was deleted
-
         except RetryAfter as e:
             logger.info(f"Sleeping {e.timeout}s on aiogram FloodWait...")
             await asyncio.sleep(e.timeout)
-            return await self._edit_unit(
-                text=text,
-                reply_markup=reply_markup,
-                force_me=force_me,
-                disable_security=disable_security,
-                always_allow=always_allow,
-                disable_web_page_preview=disable_web_page_preview,
-                query=query,
-                unit_uid=unit_uid,
-                inline_message_id=inline_message_id,
-            )
+            return await self._edit_unit(**utils.get_kwargs())
         except MessageIdInvalid:
-            try:
-                await query.answer("I should have edited some message, but it is deleted :(")  # fmt: skip
-            except InvalidQueryID:
-                pass  # Just ignore that error, bc we need to just
-                # remove preloader from user's button, if message
-                # was deleted
+            with contextlib.suppress(Exception):
+                await query.answer(
+                    "I should have edited some message, but it is deleted :("
+                )
 
     async def _delete_unit_message(
         self,
         call: CallbackQuery = None,
-        unit_uid: str = None,
+        unit_id: str = None,
     ) -> bool:
-        """Params `self`, `form`, `unit_uid` are for internal use only, do not try to pass them"""
+        """Params `self`, `unit_id` are for internal use only, do not try to pass them"""
+        if not unit_id and hasattr(call, "unit_id") and call.unit_id:
+            unit_id = call.unit_id
+
         try:
             await self._client.delete_messages(
-                self._units[unit_uid]["chat"],
-                [self._units[unit_uid]["message_id"]],
+                self._units[unit_id]["chat"],
+                [self._units[unit_id]["message_id"]],
             )
 
-            await self._unload_unit(None, unit_uid)
+            await self._unload_unit(None, unit_id)
         except Exception:
             return False
 
@@ -324,20 +454,171 @@ class Utils(InlineUnit):
     async def _unload_unit(
         self,
         call: CallbackQuery = None,
-        unit_uid: str = None,
+        unit_id: str = None,
     ) -> bool:
-        """Params `self`, `unit_uid` are for internal use only, do not try to pass them"""
+        """Params `self`, `unit_id` are for internal use only, do not try to pass them"""
         try:
-            if "on_unload" in self._units[unit_uid] and callable(
-                self._units[unit_uid]["on_unload"]
+            if "on_unload" in self._units[unit_id] and callable(
+                self._units[unit_id]["on_unload"]
             ):
-                self._units[unit_uid]["on_unload"]()
+                self._units[unit_id]["on_unload"]()
 
-            if unit_uid in self._units:
-                del self._units[unit_uid]
+            if unit_id in self._units:
+                del self._units[unit_id]
             else:
                 return False
         except Exception:
             return False
 
         return True
+
+    def build_pagination(
+        self,
+        callback: callable,
+        total_pages: int,
+        unit_id: Optional[str] = None,
+        current_page: Optional[int] = None,
+    ) -> List[dict]:
+        # Based on https://github.com/pystorage/pykeyboard/blob/master/pykeyboard/inline_pagination_keyboard.py#L4
+        if current_page is None:
+            current_page = self._units[unit_id]["current_index"] + 1
+
+        if total_pages <= 5:
+            return [
+                [
+                    {"text": number, "args": (number - 1,), "callback": callback}
+                    if number != current_page
+                    else {
+                        "text": f"· {number} ·",
+                        "args": (number - 1,),
+                        "callback": callback,
+                    }
+                    for number in range(1, total_pages + 1)
+                ]
+            ]
+        else:
+            if current_page <= 3:
+                return [
+                    [
+                        {
+                            "text": f"· {number} ·",
+                            "args": (number - 1,),
+                            "callback": callback,
+                        }
+                        if number == current_page
+                        else {
+                            "text": f"{number} ›",
+                            "args": (number - 1,),
+                            "callback": callback,
+                        }
+                        if number == 4
+                        else {
+                            "text": f"{total_pages} »",
+                            "args": (total_pages - 1,),
+                            "callback": callback,
+                        }
+                        if number == 5
+                        else {
+                            "text": number,
+                            "args": (number - 1,),
+                            "callback": callback,
+                        }
+                        for number in range(1, 6)
+                    ]
+                ]
+            elif current_page > total_pages - 3:
+                return [
+                    [
+                        {"text": "« 1", "args": (0,), "callback": callback},
+                        {
+                            "text": f"‹ {total_pages - 3}",
+                            "args": (total_pages - 4,),
+                            "callback": callback,
+                        },
+                    ]
+                    + [
+                        {
+                            "text": f"· {number} ·",
+                            "args": (number - 1,),
+                            "callback": callback,
+                        }
+                        if number == current_page
+                        else {
+                            "text": number,
+                            "args": (number - 1,),
+                            "callback": callback,
+                        }
+                        for number in range(total_pages - 2, total_pages + 1)
+                    ]
+                ]
+            else:
+                return [
+                    [
+                        {"text": "« 1", "args": (0,), "callback": callback},
+                        {
+                            "text": f"‹ {current_page - 1}",
+                            "args": (current_page - 2,),
+                            "callback": callback,
+                        },
+                        {
+                            "text": f"· {current_page} ·",
+                            "args": (current_page - 1,),
+                            "callback": callback,
+                        },
+                        {
+                            "text": f"{current_page + 1} ›",
+                            "args": (current_page,),
+                            "callback": callback,
+                        },
+                        {
+                            "text": f"{total_pages} »",
+                            "args": (total_pages - 1,),
+                            "callback": callback,
+                        },
+                    ]
+                ]
+
+    def _validate_markup(
+        self,
+        buttons: Optional[Union[List[List[dict]], List[dict], dict]],
+    ) -> list:
+        if buttons is None:
+            buttons = []
+
+        if not isinstance(buttons, (list, dict)):
+            logger.error(
+                f"Reply markup ommited because passed type is not valid ({type(buttons)})"
+            )
+            return None
+
+        buttons = self._normalize_markup(buttons)
+
+        if not all(all(isinstance(button, dict) for button in row) for row in buttons):
+            logger.error(
+                "Reply markup ommited because passed invalid type for one of the buttons"
+            )
+            return None
+
+        if not all(
+            all(
+                "url" in button
+                or "callback" in button
+                or "input" in button
+                or "data" in button
+                or "action" in button
+                for button in row
+            )
+            for row in buttons
+        ):
+            logger.error(
+                "Invalid button specified. "
+                "Button must contain one of the following fields:\n"
+                "  - `url`\n"
+                "  - `callback`\n"
+                "  - `input`\n"
+                "  - `data`\n"
+                "  - `action`"
+            )
+            return None
+
+        return buttons

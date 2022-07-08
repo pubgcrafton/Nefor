@@ -1,7 +1,9 @@
 import functools
 from typing import Any, Optional, Union
+
 from . import utils
 import grapheme
+import re
 
 
 class ValidationError(Exception):
@@ -236,7 +238,9 @@ def Series(
     """
 
     _each_en = f" (each must be {validator.doc['en']})" if validator is not None else ""
-    _each_ru = f" (каждое должно быть {validator.doc['ru']})" if validator is not None else ""  # fmt: skip
+    _each_ru = (
+        f" (каждое должно быть {validator.doc['ru']})" if validator is not None else ""
+    )
 
     if fixed_len is not None:
         _len_en = f" (exactly {fixed_len} pcs.)"
@@ -276,7 +280,9 @@ def Series(
 
 
 def _Link(value: Any, /) -> str:
-    if not utils.check_url(value):
+    try:
+        assert utils.check_url(value)
+    except Exception:
         raise ValidationError(f"Passed value ({value}) is not a valid URL")
 
     return value
@@ -298,10 +304,15 @@ def _String(value: Any, /, *, length: int) -> str:
     if isinstance(length, int) and len(list(grapheme.graphemes(str(value)))) != length:
         raise ValidationError(f"Passed value ({value}) must be a length of {length}")
 
-    return value
+    return str(value)
 
 
 def String(length: Optional[int] = None) -> Validator:
+    """
+    Checks for length of passed value and automatically converts it to string
+    :param length: Exact length of string
+    """
+
     if length is not None:
         doc = {
             "en": f"string of length {length}",
@@ -317,6 +328,36 @@ def String(length: Optional[int] = None) -> Validator:
         functools.partial(_String, length=length),
         doc,
         _internal_id="String",
+    )
+
+
+def _RegExp(value: Any, /, *, regex: str) -> str:
+    if not re.match(regex, value):
+        raise ValidationError(f"Passed value ({value}) must follow pattern {regex}")
+
+    return value
+
+
+def RegExp(regex: str) -> Validator:
+    """
+    Checks if value matches the regex
+    :param regex: Regex to match
+    """
+
+    try:
+        re.compile(regex)
+    except re.error as e:
+        raise Exception(f"{regex} is not a valid regex") from e
+
+    doc = {
+        "en": f"string matching pattern «{regex}»",
+        "ru": f"строкой, соответствующей шаблону «{regex}»",
+    }
+
+    return Validator(
+        functools.partial(_RegExp, regex=regex),
+        doc,
+        _internal_id="RegExp",
     )
 
 
@@ -412,4 +453,66 @@ def TelegramID() -> Validator:
         _TelegramID,
         "Telegram ID",
         _internal_id="TelegramID",
+    )
+
+
+def _Union(value: Any, /, *, validators: list):
+    for validator in validators:
+        try:
+            return validator.validate(value)
+        except ValidationError:
+            pass
+
+    raise ValidationError(f"Passed value ({value}) is not valid")
+
+
+def Union(*validators) -> Validator:
+    doc = {
+        "en": "one of the following:\n",
+        "ru": "одним из следующего:\n",
+    }
+
+    case = lambda x: x[0].upper() + x[1:]
+
+    for validator in validators:
+        doc["en"] += f"- {case(validator.doc['en'])}\n"
+        doc["ru"] += f"- {case(validator.doc['ru'])}\n"
+
+    doc["en"] = doc["en"].strip()
+    doc["ru"] = doc["ru"].strip()
+
+    return Validator(
+        functools.partial(_Union, validators=validators),
+        doc,
+        _internal_id="Union",
+    )
+
+
+def _NoneType(value: Any, /) -> None:
+    if value not in {None, False, ""}:
+        raise ValidationError(f"Passed value ({value}) is not None")
+
+    return None
+
+
+def NoneType() -> Validator:
+    return Validator(
+        _NoneType,
+        "`None`",
+        _internal_id="NoneType",
+    )
+
+
+def _Hidden(value: Any, /, *, validator: Validator) -> Any:
+    return validator.validate(value)
+
+
+def Hidden(validator: Optional[Validator] = None) -> Validator:
+    if not validator:
+        validator = String()
+
+    return Validator(
+        functools.partial(_Hidden, validator=validator),
+        validator.doc,
+        _internal_id="Hidden",
     )

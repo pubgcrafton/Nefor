@@ -1,3 +1,115 @@
+# Hikka Changelog
+
+## 🌑 Hikka 1.2.7
+
+- Add automatic proxy pass
+- Fix --no-web argument parsing
+- Fix localization error in updater
+- Print out only INFO statements to stdout
+- Add rotating file handler (logfile with max 10MB size)
+- Show web endpoint on startup if available
+- Fix gallery `inline_message_id` error
+- Add support for `custom_buttons` in `inline.list`
+- Add support for `custom_buttons` in `inline.gallery`
+- Smart fast_uploader (Do not use hard download on files smaller than 1 MB)
+- Attempt to parse `unit_id` from passed `InlineCall` object in `inline._delete_unit_message`
+- Reformatting
+- Change typehints
+- Show list-like values in formatted way in config
+- Properly escape html in config
+- Split config to pages and categories (core \ non-core)
+- Properly edit dictionary config (iter)
+- Properly remove items from series options through built-in configurator
+- Remove warning from web by replacing coroutine generation with `functools.partial`
+
+## 🌑 Hikka 1.2.6
+
+- Fix processing of `# scope: hikka_min`
+- Add `forbid_joins.py` (to use it, download module from official repo with the same name)
+
+## 🌑 Hikka 1.2.5
+
+- Add additional exit on restart to avoid port block
+- Add unloaded module name on `.unloadmod`
+- Add `banner_url` config var to `HikkaInfo`
+- Add `loader.validators.Hidden`
+- Add `websockets` dependency, so users can load hikarichat on Heroku
+- Add `reply_markup` kwarg to `utils.answer`. This will automatically add buttons to plain message or edit buttons of inline unit
+- Add suggestion to join developer's channel on module load if available
+- Add `client.force_get_entity` to bypass Hikka Cacher
+- Add clickable link to loaded module message if specified meta developer is channel
+- Add support of `action` attributes for buttons ("action": "close", "action": "unload", "action": "answer")
+- Add log splitter between different clients of instance (if possible)
+- Fix inline events `IndexError`
+- Fix text in inline input
+- Fix translation issue in HikkaConfig
+- Fix `.dump`
+- Fix modules list reset if you perform `.dlmod` when userbot is not yet fully loaded
+- Update links in README
+- Remove nalinor from official repos until new modules appear
+
+## 🌑 Hikka 1.2.4
+
+- Show current options in module config
+- Add new validators: `loader.validators.Union`, `loader.validators.NoneType`
+- Add additional Heroku deps
+- Fix `load_module` reattempt
+- Reorder database read-writes to make postgres the ladder
+- Make redis optional for non-heroku users
+- Add source to Pipfile
+- New Heroku dependencies list in Pipfile
+- External Redis database support
+- Mask more options in logs and .e output
+- Remove psycopg2 from requirements.txt
+- New installation banner
+- Add automatic blob->raw convertion in loader
+- Add banner with Hikka installation status
+- Reorder config saving in web
+- Fix `Unauthorized` error on Heroku
+
+## 🌑 Hikka 1.2.3
+
+- Add field `action` to inline buttons. You can pass there `close` to close inline form, `unload` to unload it from memory, `answer` & `text` | `show_alert` to answer callback query with message
+- Update docstrings in inline to match unified format
+- Add surrogate error ignorance in dispatcher
+- Fix :obj:`EntityCache` caching username `@None`
+- Return :obj:`InlineMessage` in `hikka.inline.gallery.Gallery.gallery`
+- Fix typo in docstring
+
+## 🌑 Hikka 1.2.2
+
+- Update gitignore so git doesn't count shit on heroku
+- Visual heroku fixes in updater
+- Deepsource fixes
+- Add `utils.get_entity_url`, `utils.get_message_link`, `utils.remove_html`, `utils.get_kwargs`
+- Disable modules debugging on heroku
+- Add `.nonickusers`, `.nonickcmds`, `.nonickchats`
+- Update blacklist command docs
+- Fix grep removing everything in <...>
+- Add `loader.validators.RegExp`
+- Automatically convert `None` to empty string \ zero integer etc., if validator is specified
+- More meaningful errors in `inline_handler`s
+- More meaningful errors in `self.inline.form`, `self.inline.gallery`, `self.inline.list` on user-side
+- Allow editing\adding media to form via `call.edit`. Currently supported: `photo`, `file`, `video`, `audio`, `gif`
+
+## 🌑 Hikka 1.2.1
+
+- Add termux specific requirements
+- Refactor `heroku.py` app searching algorithm
+- Refactor postgresql database saving process
+- Fix heroku restart message not being edited
+- Add heroku waker
+- Make `hikka-` app naming optional
+
+## 🌑 Hikka 1.2.0
+
+- Add full-featured Heroku support with additional buildpacks
+- Notify which dependencies are being installed in .dlmod
+- Additional GeekTG compat layer
+- Fix logging chat
+- Rework sessions storage and retrieval
+- Rework session processing in web
+
 ## 🌘 Patch released
 
 - Allow adding and removing multiple items in config

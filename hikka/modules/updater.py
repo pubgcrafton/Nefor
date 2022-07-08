@@ -26,8 +26,10 @@
 
 import asyncio
 import atexit
+import contextlib
 import logging
 import os
+import signal
 import subprocess
 import sys
 from typing import Union
@@ -41,8 +43,14 @@ from telethon.tl.functions.messages import (
 )
 from telethon.tl.types import DialogFilter, Message
 
-from .. import loader, utils, heroku
+from .. import loader, utils, heroku, main
 from ..inline.types import InlineCall
+
+try:
+    import psycopg2
+except ImportError:
+    if "DYNO" in os.environ:
+        raise
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +79,9 @@ class UpdaterMod(loader.Module):
         "cancel": "🚫 Cancel",
         "lavhost_restart": "✌️ <b>Your lavHost is restarting...\n&gt;///&lt;</b>",
         "lavhost_update": "✌️ <b>Your lavHost is updating...\n&gt;///&lt;</b>",
+        "heroku_update": "♓️ <b>Deploying new version to Heroku...\nThis might take some time</b>",
         "full_success": "✅ <b>Userbot is fully loaded! {}</b>\n<i>Full restart took {}s</i>",
+        "heroku_psycopg2_unavailable": "♓️🚫 <b>PostgreSQL database is not available.</b>\n\n<i>Do not report this error to support chat, as it has nothing to do with Hikka. Try changing database to Redis</i>",
     }
 
     strings_ru = {
@@ -79,16 +89,16 @@ class UpdaterMod(loader.Module):
         "restarting_caption": "🔄 <b>Перезагрузка...</b>",
         "downloading": "🕐 <b>Скачивание обновлений...</b>",
         "installing": "🕐 <b>Установка обновлений...</b>",
-        "success": "⏳ <b>Перезагрузка успешна! {}</b>\n<i>Но модули еще загружаются...</i>\n<i>Перезагрузка заняла {} сек</i>",
-        "full_success": "✅ <b>Юзербот полностью загружен! {}</b>\n<i>Полная перезагрузка заняла {} сек</i>",
+        "success": "❄ <i>Перезагрузка успешна! {}</i>\n<i>❄ Но модули еще загружаются...</i>\n<i>❄ Перезагрузка заняла {} сек</i>",
+        "full_success": "🔅 <i>Юзербот полностью загружен! {}</i>\n<i>🔅 Полная перезагрузка заняла {} сек</i>",
         "origin_cfg_doc": "Ссылка, из которой будут загружаться обновления",
         "btn_restart": "🔄 Перезагрузиться",
         "btn_update": "🧭 Обновиться",
         "restart_confirm": "🔄 <b>Ты уверен, что хочешь перезагрузиться?</b>",
         "update_confirm": (
             "🧭 <b>Ты уверен, что хочешь обновиться??\n\n"
-            '<a href="https://github.com/hikariatama/Hikka/commit/{}">{}</a> ⤑ '
-            '<a href="https://github.com/hikariatama/Hikka/commit/{}">{}</a></b>'
+            '<a href="https://github.com/AmoreForever/Nino/commit/{}">{}</a> ⤑ '
+            '<a href="https://github.com/AmoreForever/Nino/commit/{}">{}</a></b>'
         ),
         "no_update": "🚸 <b>У тебя последняя версия. Обновиться принудительно?</b>",
         "cancel": "🚫 Отмена",
@@ -99,13 +109,15 @@ class UpdaterMod(loader.Module):
         "_cls_doc": "Обновляет юзербот",
         "lavhost_restart": "✌️ <b>Твой lavHost перезагружается...\n&gt;///&lt;</b>",
         "lavhost_update": "✌️ <b>Твой lavHost обновляется...\n&gt;///&lt;</b>",
+        "heroku_update": "♓️ <b>Обновляю Heroku...\nЭто может занять некоторое время</b>",
+        "heroku_psycopg2_unavailable": "♓️🚫 <b>PostgreSQL база данных не доступна.</b>\n\n<i>Не обращайтесь к поддержке чата, так как эта проблема не вызвана nino. Попробуйте изменить базу данных на Redis</i>",
     }
 
     def __init__(self):
         self.config = loader.ModuleConfig(
             loader.ConfigValue(
                 "GIT_ORIGIN_URL",
-                "https://github.com/hikariatama/Hikka",
+                "https://github.com/AmoreForever/Nino",
                 lambda: self.strings("origin_cfg_doc"),
                 validator=loader.validators.Link(),
             )
@@ -126,7 +138,7 @@ class UpdaterMod(loader.Module):
                             "text": self.strings("btn_restart"),
                             "callback": self.inline_restart,
                         },
-                        {"text": self.strings("cancel"), "callback": self.inline_close},
+                        {"text": self.strings("cancel"), "action": "close"},
                     ],
                 )
             ):
@@ -136,9 +148,6 @@ class UpdaterMod(loader.Module):
 
     async def inline_restart(self, call: InlineCall):
         await self.restart_common(call)
-
-    async def inline_close(self, call: InlineCall):
-        await call.delete()
 
     async def process_restart_message(self, msg_obj: Union[InlineCall, Message]):
         self.set(
@@ -173,18 +182,24 @@ class UpdaterMod(loader.Module):
 
         self.set("restart_ts", time.time())
 
+        await self._db.remote_force_save()
+
         if "LAVHOST" in os.environ:
             os.system("lavhost restart")
             return
 
         if "DYNO" in os.environ:
-            app = heroku.get_app(os.environ["heroku_api_token"])[0]
+            app = heroku.get_app(api_token=main.hikka.api_token)[0]
             app.restart()
             return
+
+        with contextlib.suppress(Exception):
+            await main.hikka.web.stop()
 
         atexit.register(restart, *sys.argv[1:])
         handler = logging.getLogger().handlers[0]
         handler.setLevel(logging.CRITICAL)
+
         for client in self.allclients:
             # Terminate main loop of all running clients
             # Won't work if not all clients are ready
@@ -192,6 +207,7 @@ class UpdaterMod(loader.Module):
                 await client.disconnect()
 
         await message.client.disconnect()
+        sys.exit(0)
 
     async def download_common(self):
         try:
@@ -219,7 +235,7 @@ class UpdaterMod(loader.Module):
         # Now we have downloaded new code, install requirements
         logger.debug("Installing new requirements...")
         try:
-            subprocess.run(  # skipcq: PYL-W1510
+            subprocess.run(
                 [
                     sys.executable,
                     "-m",
@@ -231,9 +247,9 @@ class UpdaterMod(loader.Module):
                         "requirements.txt",
                     ),
                     "--user",
-                ]
+                ],
+                check=True,
             )
-
         except subprocess.CalledProcessError:
             logger.exception("Req install failed")
 
@@ -251,19 +267,20 @@ class UpdaterMod(loader.Module):
                 or not await self.inline.form(
                     message=message,
                     text=self.strings("update_confirm").format(
-                        current,
-                        current[:8],
-                        upcoming,
-                        upcoming[:8],
+                        *(
+                            [current, current[:8], upcoming, upcoming[:8]]
+                            if "DYNO" not in os.environ
+                            else ["", "", "", ""]
+                        )
                     )
-                    if upcoming != current
+                    if upcoming != current or "DYNO" in os.environ
                     else self.strings("no_update"),
                     reply_markup=[
                         {
                             "text": self.strings("btn_update"),
                             "callback": self.inline_update,
                         },
-                        {"text": self.strings("cancel"), "callback": self.inline_close},
+                        {"text": self.strings("cancel"), "action": "close"},
                     ],
                 )
             ):
@@ -278,13 +295,27 @@ class UpdaterMod(loader.Module):
     ):
         # We don't really care about asyncio at this point, as we are shutting down
         if hard:
-            os.system(f"cd {utils.get_base_dir()} && cd .. && git reset --hard HEAD")  # fmt: skip
+            os.system(f"cd {utils.get_base_dir()} && cd .. && git reset --hard HEAD")
 
         try:
             if "LAVHOST" in os.environ:
                 msg_obj = await utils.answer(msg_obj, self.strings("lavhost_update"))
                 await self.process_restart_message(msg_obj)
                 os.system("lavhost update")
+                return
+
+            if "DYNO" in os.environ:
+                await utils.answer(msg_obj, self.strings("heroku_update"))
+                await self.process_restart_message(msg_obj)
+                try:
+                    await self._db.remote_force_save()
+                except psycopg2.errors.InFailedSqlTransaction:
+                    await utils.answer(
+                        msg_obj, self.strings("heroku_psycopg2_unavailable")
+                    )
+                    return
+
+                heroku.publish(api_token=main.hikka.api_token, create_new=False)
                 return
 
             try:
@@ -334,7 +365,7 @@ class UpdaterMod(loader.Module):
 
         folders = await self._client(GetDialogFiltersRequest())
 
-        if any(folder.title == "hikka" for folder in folders):
+        if any(folder.title == "Nino" for folder in folders):
             return
 
         try:
@@ -354,7 +385,7 @@ class UpdaterMod(loader.Module):
                     folder_id,
                     DialogFilter(
                         folder_id,
-                        title="hikka",
+                        title="Nino",
                         pinned_peers=(
                             [
                                 await self._client.get_input_entity(
@@ -372,18 +403,18 @@ class UpdaterMod(loader.Module):
                             )
                             if dialog.name
                             in {
-                                "hikka-logs",
-                                "hikka-onload",
-                                "hikka-assets",
-                                "hikka-backups",
-                                "hikka-acc-switcher",
+                                "nino-logs",
+                                "nino-onload",
+                                "nino-assets",
+                                "nino-backups",
+                                "nino-acc-switcher",
                                 "silent-tags",
                             }
                             and dialog.is_channel
                             and (
                                 dialog.entity.participants_count == 1
                                 or dialog.entity.participants_count == 2
-                                and dialog.name in {"hikka-logs", "silent-tags"}
+                                and dialog.name in {"nino-logs", "silent-tags"}
                             )
                             or (
                                 self._client.loader.inline.init_complete
@@ -392,12 +423,12 @@ class UpdaterMod(loader.Module):
                             )
                             or dialog.entity.id
                             in [
-                                1554874075,
-                                1697279580,
-                                1679998924,
-                            ]  # official hikka chats
+                                1624747360,
+                                1697530378,
+                                1739757579,
+                            ]  
                         ],
-                        emoticon="🐱",
+                        emoticon="😺",
                         exclude_peers=[],
                         contacts=False,
                         non_contacts=False,

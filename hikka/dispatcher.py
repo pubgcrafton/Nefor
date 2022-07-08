@@ -28,10 +28,11 @@
 
 import asyncio
 import collections
+import copy
+import functools
 import logging
 import re
 import traceback
-from types import FunctionType
 from typing import Tuple, Union
 
 from telethon import types
@@ -65,9 +66,12 @@ class CommandDispatcher:
         self._ratelimit_max_chat = db.get(__name__, "ratelimit_max_chat", 100)
         self.check_security = self.security.check
 
-    async def init(self, client: "TelegramClient"):  # noqa: F821
+    async def init(self, client: "TelegramClient"):  # type: ignore
         await self.security.init(client)
         me = await client.get_me()
+
+        self.client = client  # Intended to be used to track user in logging
+
         self._me = me.id
         self._cached_username = me.username.lower() if me.username else str(me.id)
 
@@ -156,13 +160,17 @@ class CommandDispatcher:
             for line in text.split("\n"):
                 if (
                     grep
-                    and grep in re.sub("<.*?>", "", line)
-                    and (not ungrep or ungrep not in re.sub("<.*?>", "", line))
+                    and grep in utils.remove_html(line)
+                    and (not ungrep or ungrep not in utils.remove_html(line))
                 ):
-                    res.append(line.replace(grep, f"<u>{grep}</u>"))
+                    res.append(
+                        utils.remove_html(line, escape=True).replace(
+                            grep, f"<u>{grep}</u>"
+                        )
+                    )
 
-                if not grep and ungrep and ungrep not in re.sub("<.*?>", "", line):
-                    res.append(line)
+                if not grep and ungrep and ungrep not in utils.remove_html(line):
+                    res.append(utils.remove_html(line, escape=True))
 
             cont = (
                 (f"contain <b>{grep}</b>" if grep else "")
@@ -201,7 +209,7 @@ class CommandDispatcher:
     async def _handle_command(
         self,
         event,
-    ) -> Union[bool, Tuple[Message, str, str, FunctionType]]:
+    ) -> Union[bool, Tuple[Message, str, str, callable]]:
         if not hasattr(event, "message") or not hasattr(event.message, "message"):
             return False
 
@@ -424,8 +432,15 @@ class CommandDispatcher:
             # Avoid weird AttributeErrors in weird dochub modules by settings placeholder
             # of attributes
             for placeholder in {"text", "raw_text"}:
-                if not hasattr(event, placeholder):
-                    setattr(event, placeholder, "")
+                try:
+                    if not hasattr(message, placeholder):
+                        setattr(message, placeholder, "")
+                except UnicodeDecodeError:
+                    logging.critical(
+                        "Hikka issued error on updates\n"
+                        "This is not your fault, please, report this issue in @hikka_talks along with info below:\n\n"
+                        f"{type(message)=}, {message=}, {placeholder=}"
+                    )
 
             # Run watcher via ensure_future so in case user has a lot
             # of watchers with long actions, they can run simultaneously
@@ -439,11 +454,14 @@ class CommandDispatcher:
 
     async def future_dispatcher(
         self,
-        func: FunctionType,
+        func: callable,
         message: Message,
-        exception_handler: FunctionType,
+        exception_handler: callable,
         *args,
     ):
+        # Will be used to determine, which client caused logging messages
+        # parsed via inspect.stack()
+        _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)  # skipcq
         try:
             await func(message)
         except BaseException as e:

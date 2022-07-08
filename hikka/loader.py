@@ -27,6 +27,8 @@
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 import asyncio
+import contextlib
+import copy
 import functools
 import importlib
 import importlib.util
@@ -41,12 +43,12 @@ from types import FunctionType
 from typing import Any, Optional, Union, List
 from telethon.tl.types import Message
 
-from . import security, utils, validators  # noqa: F401
-from ._types import (  # noqa: F401
-    ConfigValue,
-    LoadError,
+from . import security, utils, validators
+from ._types import (
+    ConfigValue,  # type: ignore
+    LoadError,  # type: ignore
     Module,
-    ModuleConfig,
+    ModuleConfig,  # type: ignore
     SelfUnload,
     StopLoop,
     InlineMessage,
@@ -112,7 +114,6 @@ class InfiniteLoop:
         wait_before: bool,
         stop_clause: Union[str, None],
     ):
-        logger.debug(f"Inited new loop {func=}, {interval=}")
         self.func = func
         self.interval = interval
         self._wait_before = wait_before
@@ -123,6 +124,11 @@ class InfiniteLoop:
         self._wait_for_stop.set()
 
     def stop(self, *args, **kwargs):
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(
+                self.module_instance.allmodules.client._tg_id
+            )
+
         if self._task:
             logger.debug(f"Stopped loop for {self.func}")
             self._wait_for_stop = asyncio.Event()
@@ -135,6 +141,11 @@ class InfiniteLoop:
         return asyncio.ensure_future(stop_placeholder())
 
     def start(self, *args, **kwargs):
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(
+                self.module_instance.allmodules.client._tg_id
+            )
+
         if not self._task:
             logger.debug(f"Started loop for {self.func}")
             self._task = asyncio.ensure_future(self.actual_loop(*args, **kwargs))
@@ -321,14 +332,7 @@ class Modules:
             mods = [
                 os.path.join(utils.get_base_dir(), MODULES_NAME, mod)
                 for mod in filter(
-                    lambda x: (
-                        x.endswith(".py")
-                        and not x.startswith("_")
-                        and (
-                            not db.get("hikka", "disable_quickstart", False)
-                            or x != "quickstart.py"
-                        )
-                    ),
+                    lambda x: (x.endswith(".py") and not x.startswith("_")),
                     os.listdir(os.path.join(utils.get_base_dir(), MODULES_NAME)),
                 )
             ]
@@ -350,6 +354,9 @@ class Modules:
         self._register_modules(external_mods, "<file>")
 
     def _register_modules(self, modules: list, origin: str = "<core>"):
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)
+
         for mod in modules:
             try:
                 module_name = (
@@ -379,6 +386,9 @@ class Modules:
         save_fs: bool = False,
     ) -> Module:
         """Register single module from importlib spec"""
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)
+
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
@@ -428,6 +438,9 @@ class Modules:
 
     def register_commands(self, instance: Module):
         """Register commands from instance"""
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)
+
         if getattr(instance, "__origin__", "") == "<core>":
             self._core_commands += list(map(lambda x: x.lower(), instance.commands))
 
@@ -441,7 +454,9 @@ class Modules:
                     self.modules.remove(instance)
                 except Exception:
                     pass
-                raise RuntimeError(f"Command {command} is core and will not be overwritten by {instance}")  # fmt: skip
+                raise RuntimeError(
+                    f"Command {command} is core and will not be overwritten by {instance}"
+                )
 
             # Verify that command does not already exist, or,
             # if it does, the command must be from the same class name
@@ -453,7 +468,7 @@ class Modules:
                     != self.commands[command].__self__.__class__.__name__
                 ):
                     logger.debug(f"Duplicate command {command}")
-                logger.debug(f"Replacing command for {self.commands[command]}")  # fmt: skip
+                logger.debug(f"Replacing command for {self.commands[command]}")
 
             if not instance.commands[command].__doc__:
                 logger.debug(f"Missing docs for {command}")
@@ -473,7 +488,9 @@ class Modules:
                     != self.inline_handlers[handler].__self__.__class__.__name__
                 ):
                     logger.debug(f"Duplicate inline_handler {handler}")
-                logger.debug(f"Replacing inline_handler for {self.inline_handlers[handler]}")  # fmt: skip
+                logger.debug(
+                    f"Replacing inline_handler for {self.inline_handlers[handler]}"
+                )
 
             if not instance.inline_handlers[handler].__doc__:
                 logger.debug(f"Missing docs for {handler}")
@@ -490,10 +507,15 @@ class Modules:
                 != self.callback_handlers[handler].__self__.__class__.__name__
             ):
                 logger.debug(f"Duplicate callback_handler {handler}")
-            self.callback_handlers.update({handler.lower(): instance.callback_handlers[handler]})  # fmt: skip
+            self.callback_handlers.update(
+                {handler.lower(): instance.callback_handlers[handler]}
+            )
 
     def register_watcher(self, instance: Module):
         """Register watcher from instance"""
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)
+
         try:
             if instance.watcher:
                 for watcher in self.watchers:
@@ -517,6 +539,9 @@ class Modules:
 
     def complete_registration(self, instance: Module):
         """Complete registration of instance"""
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)
+
         instance.allmodules = self
         instance.hikka = True
         instance.get = functools.partial(
@@ -581,14 +606,17 @@ class Modules:
         for mod in self.modules:
             self.send_config_one(mod, db, translator, skip_hook)
 
-    @staticmethod
     def send_config_one(
+        self,
         mod: "Module",
         db: "Database",  # type: ignore
         translator: "Translator" = None,  # type: ignore
         skip_hook: bool = False,
     ):
         """Send config to single instance"""
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)
+
         if hasattr(mod, "config"):
             modcfg = db.get(
                 mod.__class__.__name__,
@@ -679,8 +707,13 @@ class Modules:
         button due to the limitations of Telegram API
         """
 
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)
+
         if interval < 0.1:
-            logger.warning("Resetting animation interval to 0.1s, because it may get you in floodwaits bro")  # fmt: skip
+            logger.warning(
+                "Resetting animation interval to 0.1s, because it may get you in floodwaits bro"
+            )
             interval = 0.1
 
         for frame in frames:
@@ -713,6 +746,9 @@ class Modules:
         mod._client = client
         mod._tg_id = client._tg_id
 
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(client._tg_id)
+
         mod.inline = self.inline
         mod.animate = self._animate
 
@@ -743,7 +779,9 @@ class Modules:
             logger.debug(f"Unloading {mod}, because it raised SelfUnload")
             self.modules.remove(mod)
         except Exception as e:
-            logger.exception(f"Failed to send mod init complete signal for {mod} due to {e}, attempting unload")  # fmt: skip
+            logger.exception(
+                f"Failed to send mod init complete signal for {mod} due to {e}, attempting unload"
+            )
             self.modules.remove(mod)
             raise
 
@@ -775,6 +813,9 @@ class Modules:
         """Remove module and all stuff from it"""
         worked = []
         to_remove = []
+
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self.client._tg_id)
 
         for module in self.modules:
             if classname.lower() in (
@@ -856,7 +897,9 @@ class Modules:
         affected_uids=None,
         data=None,
     ):
-        return await asyncio.gather(*[fun(type_, group, affected_uids, data) for fun in self._log_handlers])  # fmt: skip
+        return await asyncio.gather(
+            *[fun(type_, group, affected_uids, data) for fun in self._log_handlers]
+        )
 
     def register_logger(self, _logger):
         self._log_handlers += [_logger]

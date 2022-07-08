@@ -29,6 +29,8 @@
 # scope: inline
 
 import asyncio
+import contextlib
+import functools
 import importlib
 import inspect
 import logging
@@ -36,6 +38,7 @@ import os
 import re
 import ast
 import sys
+import time
 import uuid
 from collections import ChainMap
 from importlib.machinery import ModuleSpec
@@ -44,7 +47,9 @@ from urllib.parse import urlparse
 
 import requests
 import telethon
-from telethon.tl.types import Message
+from telethon.tl.types import Message, Channel
+from telethon.tl.functions.channels import JoinChannelRequest
+from telethon.tl.functions.contacts import SearchRequest
 
 from .. import loader, main, utils
 from ..compat import geek
@@ -52,65 +57,14 @@ from ..inline.types import InlineCall
 
 logger = logging.getLogger(__name__)
 
-VALID_URL = r"[-[\]_.~:/?#@!$&'()*+,;%<=>a-zA-Z0-9]+"
-
 VALID_PIP_PACKAGES = re.compile(
-    r"^\s*# ?requires:(?: ?)((?:{url} )*(?:{url}))\s*$".format(url=VALID_URL),
+    r"^\s*# ?requires:(?: ?)((?:{url} )*(?:{url}))\s*$".format(
+        url=r"[-[\]_.~:/?#@!$&'()*+,;%<=>a-zA-Z0-9]+"
+    ),
     re.MULTILINE,
 )
 
 USER_INSTALL = "PIP_TARGET" not in os.environ and "VIRTUAL_ENV" not in os.environ
-
-GIT_REGEX = re.compile(
-    r"^https?://github\.com((?:/[a-z0-9-]+){2})(?:/tree/([a-z0-9-]+)((?:/[a-z0-9-]+)*))?/?$",
-    flags=re.IGNORECASE,
-)
-
-
-def unescape_percent(text):
-    i = 0
-    ln = len(text)
-    is_handling_percent = False
-    out = ""
-
-    while i < ln:
-        char = text[i]
-
-        if char == "%" and not is_handling_percent:
-            is_handling_percent = True
-            i += 1
-            continue
-
-        if char == "d" and is_handling_percent:
-            out += "."
-            is_handling_percent = False
-            i += 1
-            continue
-
-        out += char
-        is_handling_percent = False
-        i += 1
-
-    return out
-
-
-def get_git_api(url):
-    m = GIT_REGEX.search(url)
-
-    if m is None:
-        return None
-
-    branch = m.group(2)
-    path_ = m.group(3)
-    api_url = f"https://api.github.com/repos{m.group(1)}/contents"
-
-    if path_ is not None and len(path_) > 0:
-        api_url += path_
-
-    if branch:
-        api_url += f"?ref={branch}"
-
-    return api_url
 
 
 @loader.tds
@@ -129,9 +83,9 @@ class LoaderMod(loader.Module):
         "provide_module": "<b>⚠️ Provide a module to load</b>",
         "bad_unicode": "<b>🚫 Invalid Unicode formatting in module</b>",
         "load_failed": "<b>🚫 Loading failed. See logs for details</b>",
-        "loaded": "<b>🔭 Module </b><code>{}</code>{}<b> loaded {}</b>{}{}{}",
+        "loaded": "<b>🔭 Module </b><code>{}</code>{}<b> loaded {}</b>{}{}{}{}{}",
         "no_class": "<b>What class needs to be unloaded?</b>",
-        "unloaded": "<b>🧹 Module unloaded.</b>",
+        "unloaded": "<b>🧹 Module {} unloaded.</b>",
         "not_unloaded": "<b>🚫 Module not unloaded.</b>",
         "requirements_failed": "<b>🚫 Requirements installation failed</b>",
         "requirements_installing": "<b>🔄 Installing requirements:\n\n{}</b>",
@@ -149,7 +103,7 @@ class LoaderMod(loader.Module):
         ),
         "version_incompatible": "🚫 <b>This module requires Hikka {}+\nPlease, update with </b><code>.update</code>",
         "ffmpeg_required": "🚫 <b>This module requires FFMPEG, which is not installed</b>",
-        "developer": "\n\n💻 <b>Developer: </b><code>{}</code>",
+        "developer": "\n\n💻 <b>Developer: </b>{}",
         "module_fs": "💿 <b>Would you like to save this module to filesystem, so it won't get unloaded after restart?</b>",
         "save": "💿 Save",
         "no_save": "🚫 Don't save",
@@ -158,7 +112,16 @@ class LoaderMod(loader.Module):
         "will_save_fs": "💽 Now all modules, loaded with .loadmod will be saved to filesystem",
         "add_repo_config_doc": "Additional repos to load from",
         "share_link_doc": "Share module link in result message of .dlmod",
-        "modlink": "\n🌍 <b>Link: </b><code>{}</code>",
+        "modlink": "\n\n🌍 <b>Link: </b><code>{}</code>",
+        "blob_link": "🚸 <b>Do not use `blob` links to download modules. Consider switching to `raw` instead</b>",
+        "suggest_subscribe": "\n\n💬 <b>This module is made by {}. Do you want to join this channel to support developer?</b>",
+        "subscribe": "💬 Subscribe",
+        "no_subscribe": "🚫 Don't subscribe",
+        "subscribed": "💬 Subscribed",
+        "not_subscribed": "🚫 I will no longer suggest subscribing to this channel",
+        "confirm_clearmodules": "⚠️ <b>Are you sure you want to clear all modules?</b>",
+        "clearmodules": "🗑 Clear modules",
+        "cancel": "🚫 Cancel",
     }
 
     strings_ru = {
@@ -171,11 +134,11 @@ class LoaderMod(loader.Module):
         "no_module": "<b>🚫 Модуль недоступен в репозитории.</b>",
         "no_file": "<b>🚫 Файл не найден</b>",
         "provide_module": "<b>⚠️ Укажи модуль для загрузки</b>",
-        "bad_unicode": "<b>🚫 Неверная кодировка модуля</b>",
-        "load_failed": "<b>🚫 Загрузка не увенчалась успехом. Смотри логи.</b>",
-        "loaded": "<b>🔭 Модуль </b><code>{}</code>{}<b> загружен {}</b>{}{}{}",
+        "bad_unicode": "<b>🙄 Неверная кодировка модуля</b>",
+        "load_failed": "<b>🙄 Загрузка не увенчалась успехом. Смотри логи.</b>",
+        "loaded": "<b>⭐ Модуль успешно загружен</b><code>{}</code>\n⭐ Версия: {}<b>\n {}</b>",
         "no_class": "<b>А что выгружать то?</b>",
-        "unloaded": "<b>🧹 Модуль выгружен.</b>",
+        "unloaded": "<b>🧹 Модуль {} выгружен.</b>",
         "not_unloaded": "<b>🚫 Модуль не выгружен.</b>",
         "requirements_failed": "<b>🚫 Ошибка установки зависимостей</b>",
         "requirements_installing": "<b>🔄 Устанавливаю зависимости:\n\n{}</b>",
@@ -187,7 +150,7 @@ class LoaderMod(loader.Module):
         "undoc_ihandler": "🦥 Нет описания",
         "version_incompatible": "🚫 <b>Этому модулю требуется Hikka версии {}+\nОбновись с помощью </b><code>.update</code>",
         "ffmpeg_required": "🚫 <b>Этому модулю требуется FFMPEG, который не установлен</b>",
-        "developer": "\n\n💻 <b>Разработчик: </b><code>{}</code>",
+        "developer": "\n\n💻 <b>Разработчик: </b>{}",
         "module_fs": "💿 <b>Ты хочешь сохранить модуль на жесткий диск, чтобы он не выгружался при перезагрузке?</b>",
         "save": "💿 Сохранить",
         "no_save": "🚫 Не сохранять",
@@ -202,14 +165,24 @@ class LoaderMod(loader.Module):
         "_cmd_doc_clearmodules": "Выгружает все установленные модули",
         "_cls_doc": "Загружает модули",
         "share_link_doc": "Указывать ссылку на модуль после загрузки через .dlmod",
-        "modlink": "\n🌍 <b>Ссылка: </b><code>{}</code>",
+        "modlink": "\n\n🌍 <b>Ссылка: </b><code>{}</code>",
+        "blob_link": "🚸 <b>Не используй `blob` ссылки для загрузки модулей. Лучше загружать из `raw`</b>",
+        "raw_link": "\n🌍 <b>Ссылка: </b><code>{}</code>",
+        "suggest_subscribe": "\n\n💬 <b>Этот модуль сделан {}. Подписаться на него, чтобы поддержать разработчика?</b>",
+        "subscribe": "💬 Подписаться",
+        "no_subscribe": "🚫 Не подписываться",
+        "subscribed": "💬 Подписался!",
+        "unsubscribed": "🚫 Я больше не буду предлагать подписаться на этот канал",
+        "confirm_clearmodules": "⚠️ <b>Вы уверены, что хотите выгрузить все модули?</b>",
+        "clearmodules": "🗑 Выгрузить модули",
+        "cancel": "🚫 Отмена",
     }
 
     def __init__(self):
         self.config = loader.ModuleConfig(
             loader.ConfigValue(
                 "MODULES_REPO",
-                "https://mods.hikariatama.ru/",
+                "https://mods.hikariatama.ru",
                 lambda: self.strings("repo_config_doc"),
                 validator=loader.validators.Link(),
             ),
@@ -217,22 +190,21 @@ class LoaderMod(loader.Module):
                 "ADDITIONAL_REPOS",
                 # Currenly the trusted developers are specified
                 [
-                    "https://github.com/hikariatama/host/raw/master/",
-                    "https://github.com/MoriSummerz/ftg-mods/raw/main/",
-                    "https://gitlab.com/CakesTwix/friendly-userbot-modules/-/raw/master/",
+                    "https://github.com/hikariatama/host/raw/master",
+                    "https://github.com/MoriSummerz/ftg-mods/raw/main",
+                    "https://gitlab.com/CakesTwix/friendly-userbot-modules/-/raw/master",
                 ],
                 lambda: self.strings("add_repo_config_doc"),
                 validator=loader.validators.Series(validator=loader.validators.Link()),
             ),
             loader.ConfigValue(
                 "share_link",
-                False,
-                lambda: self.strings("share_link_doc"),
+                doc=lambda: self.strings("share_link_doc"),
                 validator=loader.validators.Boolean(),
             ),
         )
 
-    def _update_modules_in_db(self) -> None:
+    def _update_modules_in_db(self):
         self.set(
             "loaded_modules",
             {
@@ -243,13 +215,14 @@ class LoaderMod(loader.Module):
         )
 
     @loader.owner
-    async def dlmodcmd(self, message: Message) -> None:
+    async def dlmodcmd(self, message: Message):
         """Downloads and installs a module from the official module repo"""
         if args := utils.get_args(message):
             args = args[0]
 
             await self.download_and_install(args, message)
-            self._update_modules_in_db()
+            if self._fully_loaded:
+                self._update_modules_in_db()
         else:
             await self.inline.list(
                 message,
@@ -280,25 +253,15 @@ class LoaderMod(loader.Module):
             )
 
     @loader.owner
-    async def dlpresetcmd(self, message: Message) -> None:
+    async def dlpresetcmd(self, message: Message):
         """Set modules preset"""
         args = utils.get_args(message)
-
         if not args:
             await utils.answer(message, self.strings("select_preset"))
             return
 
-        try:
-            await self.get_repo_list(args[0])
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                await utils.answer(message, self.strings("no_preset"))
-                return
-
-            raise
-
+        await self.get_repo_list(args[0])
         self.set("chosen_preset", args[0])
-        self.set("loaded_modules", {})
 
         await utils.answer(message, self.strings("preset_loaded"))
         await self.allmodules.commands["restart"](
@@ -306,46 +269,59 @@ class LoaderMod(loader.Module):
         )
 
     async def _get_modules_to_load(self):
-        preset = self.get("chosen_preset", None)
+        preset = self.get("chosen_preset")
 
         if preset != "disable":
-            possible_mods = (await self.get_repo_list(preset)).values()
+            possible_mods = (
+                await self.get_repo_list(preset, only_primary=True)
+            ).values()
             todo = dict(ChainMap(*possible_mods))
         else:
             todo = {}
 
         todo.update(**self.get("loaded_modules", {}))
+        logger.debug(f"Loading modules: {todo}")
         return todo
 
     async def _get_repo(self, repo: str, preset: str) -> str:
+        repo = repo.strip("/")
+        preset_id = f"{repo}/{preset}"
+
+        if self._links_cache.get(preset_id, {}).get("exp", 0) >= time.time():
+            return self._links_cache[preset_id]["data"]
+
         res = await utils.run_sync(
             requests.get,
-            f'{repo.strip("/")}/{preset}.txt',
+            f"{repo}/{preset}.txt",
         )
+
         if not str(res.status_code).startswith("2"):
             logger.debug(f"Can't load {repo=}, {preset=}, {res.status_code=}")
-            return ""
+            return []
 
-        return res.text
+        self._links_cache[preset_id] = {
+            "exp": time.time() + 5 * 60,
+            "data": [link for link in res.text.strip().splitlines() if link],
+        }
 
-    async def get_repo_list(self, preset: Optional[str] = None):
+        return self._links_cache[preset_id]["data"]
+
+    async def get_repo_list(
+        self,
+        preset: Optional[str] = None,
+        only_primary: Optional[bool] = False,
+    ) -> dict:
         if preset is None or preset == "none":
             preset = "minimal"
 
         return {
             repo: {
-                f"Preset_mod_{repo_id}_{i}": f'{repo.strip("/")}/{link}.py'
-                for i, link in enumerate(
-                    set(
-                        filter(
-                            lambda x: x,
-                            (await self._get_repo(repo, preset)).split("\n"),
-                        )
-                    )
-                )
+                f"Mod/{repo_id}/{i}": f'{repo.strip("/")}/{link}.py'
+                for i, link in enumerate(set(await self._get_repo(repo, preset)))
             }
             for repo_id, repo in enumerate(
-                [self.config["MODULES_REPO"]] + self.config["ADDITIONAL_REPOS"]
+                [self.config["MODULES_REPO"]]
+                + ([] if only_primary else self.config["ADDITIONAL_REPOS"])
             )
             if repo.startswith("http")
         }
@@ -360,24 +336,38 @@ class LoaderMod(loader.Module):
         del links[self.config["MODULES_REPO"]]
         return main_repo + converter(links)
 
+    async def _find_link(self, module_name: str) -> Union[str, bool]:
+        links = await self.get_links_list()
+        return next(
+            (
+                link
+                for link in links
+                if link.lower().endswith(f"/{module_name.lower()}.py")
+            ),
+            False,
+        )
+
     async def download_and_install(
         self,
         module_name: str,
         message: Optional[Message] = None,
     ):
         try:
+            blob_link = False
+            module_name = module_name.strip()
             if urlparse(module_name).netloc:
                 url = module_name
+                if re.match(
+                    r"^(https:\/\/github\.com\/.*?\/.*?\/blob\/.*\.py)|"
+                    r"(https:\/\/gitlab\.com\/.*?\/.*?\/-\/blob\/.*\.py)$",
+                    url,
+                ):
+                    url = url.replace("/blob/", "/raw/")
+                    blob_link = True
             else:
-                links = await self.get_links_list()
+                url = await self._find_link(module_name)
 
-                try:
-                    url = next(
-                        link
-                        for link in links
-                        if link.lower().endswith(f"/{module_name.lower()}.py")
-                    )
-                except Exception:
+                if not url:
                     if message is not None:
                         await utils.answer(message, self.strings("no_module"))
 
@@ -398,6 +388,7 @@ class LoaderMod(loader.Module):
                 message,
                 module_name,
                 url,
+                blob_link=blob_link,
             )
         except Exception:
             logger.exception(f"Failed to load {module_name}")
@@ -408,7 +399,7 @@ class LoaderMod(loader.Module):
         doc: str,
         path_: Union[str, None],
         mode: str,
-    ) -> None:
+    ):
         save = False
         if mode == "all_yes":
             self._db.set(main.__name__, "permanent_modules_fs", True)
@@ -421,13 +412,10 @@ class LoaderMod(loader.Module):
         elif mode == "once":
             save = True
 
-        if path_ is not None:
-            await self.load_module(doc, call, origin=path_, save_fs=save)
-        else:
-            await self.load_module(doc, call, save_fs=save)
+        await self.load_module(doc, call, origin=path_ or "<string>", save_fs=save)
 
     @loader.owner
-    async def loadmodcmd(self, message: Message) -> None:
+    async def loadmodcmd(self, message: Message):
         """Loads the module file"""
         msg = message if message.file else (await message.get_reply_message())
 
@@ -466,7 +454,7 @@ class LoaderMod(loader.Module):
         ):
             if message.file:
                 await message.edit("")
-                message = await message.respond("🌘")
+                message = await message.respond("▫️")
 
             if await self.inline.form(
                 self.strings("module_fs"),
@@ -526,7 +514,8 @@ class LoaderMod(loader.Module):
         origin: Optional[str] = "<string>",
         did_requirements: Optional[bool] = False,
         save_fs: Optional[bool] = False,
-    ) -> None:
+        blob_link: Optional[bool] = False,
+    ):
         if any(
             line.replace(" ", "") == "#scope:ffmpeg" for line in doc.splitlines()
         ) and os.system("ffmpeg -version 1>/dev/null 2>/dev/null"):
@@ -543,10 +532,7 @@ class LoaderMod(loader.Module):
             return
 
         if re.search(r"# ?scope: ?hikka_min", doc):
-            ver = re.search(
-                r"# ?scope: ?hikka_min ([0-9]+\.[0-9]+\.[0-9]+)",
-                doc,
-            ).group(1)
+            ver = re.search(r"# ?scope: ?hikka_min ((\d+\.){2}\d+)", doc).group(1)
             ver_ = tuple(map(int, ver.split(".")))
             if main.__version__ < ver_:
                 if isinstance(message, Message):
@@ -566,7 +552,7 @@ class LoaderMod(loader.Module):
                             },
                             {
                                 "text": self.lookup("updater").strings("cancel"),
-                                "callback": self.lookup("updater").inline_close,
+                                "action": "close",
                             },
                         ],
                     )
@@ -574,11 +560,8 @@ class LoaderMod(loader.Module):
 
         developer = re.search(r"# ?meta developer: ?(.+)", doc)
         developer = developer.group(1) if developer else False
-        developer = (
-            self.strings("developer").format(utils.escape_html(developer))
-            if developer
-            else ""
-        )
+
+        blob_link = self.strings("blob_link") if blob_link else ""
 
         if name is None:
             try:
@@ -625,12 +608,14 @@ class LoaderMod(loader.Module):
                             lambda x: not x.startswith(("-", "_", ".")),
                             map(
                                 str.strip,
-                                VALID_PIP_PACKAGES.search(doc)[1].split(" "),
+                                VALID_PIP_PACKAGES.search(doc)[1].split(),
                             ),
                         )
                     )
                 except TypeError:
-                    logger.warning("No valid pip packages specified in code, attemping installation from error")  # fmt: skip
+                    logger.warning(
+                        "No valid pip packages specified in code, attemping installation from error"
+                    )
                     requirements = [e.name]
 
                 logger.debug(f"Installing requirements: {requirements}")
@@ -681,19 +666,13 @@ class LoaderMod(loader.Module):
 
                 importlib.invalidate_caches()
 
-                return await self.load_module(
-                    doc,
-                    message,
-                    name,
-                    origin,
-                    True,
-                    save_fs,
-                )  # Try again
+                kwargs = utils.get_kwargs()
+                kwargs["did_requirements"] = True
+
+                return await self.load_module(**kwargs)  # Try again
             except loader.LoadError as e:
-                try:
+                with contextlib.suppress(ValueError):
                     self.allmodules.modules.remove(instance)  # skipcq: PYL-E0601
-                except ValueError:
-                    pass
 
                 if message:
                     await utils.answer(message, f"🚫 <b>{utils.escape_html(str(e))}</b>")
@@ -725,20 +704,16 @@ class LoaderMod(loader.Module):
                     from_dlmod=bool(message),
                 )
             except loader.LoadError as e:
-                try:
+                with contextlib.suppress(ValueError):
                     self.allmodules.modules.remove(instance)
-                except ValueError:
-                    pass
 
                 if message:
                     await utils.answer(message, f"🚫 <b>{utils.escape_html(str(e))}</b>")
                 return
             except loader.SelfUnload as e:
                 logging.debug(f"Unloading {instance}, because it raised `SelfUnload`")
-                try:
+                with contextlib.suppress(ValueError):
                     self.allmodules.modules.remove(instance)
-                except ValueError:
-                    pass
 
                 if message:
                     await utils.answer(message, f"🚫 <b>{utils.escape_html(str(e))}</b>")
@@ -766,25 +741,92 @@ class LoaderMod(loader.Module):
         modhelp = ""
 
         if instance.__doc__:
-            modhelp += f"<i>\nℹ️ {utils.escape_html(inspect.getdoc(instance))}</i>\n"
+            modhelp += f"<i>\n⭐ {utils.escape_html(inspect.getdoc(instance))}</i>\n"
+
+        subscribe = ""
+        subscribe_markup = None
+
+        def loaded_msg(use_subscribe: bool = True):
+            nonlocal modname, version, modhelp, developer, origin, subscribe, blob_link
+            return self.strings("loaded").format(
+                modname.strip(),
+                version,
+                utils.ascii_face(),
+                modhelp,
+                developer if not subscribe or not use_subscribe else "",
+                self.strings("modlink").format(origin)
+                if origin != "<string>" and self.config["share_link"]
+                else "",
+                blob_link,
+                subscribe if use_subscribe else "",
+            )
+
+        if developer:
+            if developer.startswith("@") and developer not in self.get(
+                "do_not_subscribe", []
+            ):
+                try:
+                    if developer in self._client._hikka_cache and getattr(
+                        await self._client.get_entity(developer), "left", True
+                    ):
+                        developer_entity = await self._client.force_get_entity(
+                            developer
+                        )
+                    else:
+                        developer_entity = await self._client.get_entity(developer)
+                except Exception:
+                    developer_entity = None
+
+                if (
+                    isinstance(developer_entity, Channel)
+                    and getattr(developer_entity, "left", True)
+                    and self._db.get(main.__name__, "suggest_subscribe", True)
+                ):
+                    subscribe = self.strings("suggest_subscribe").format(
+                        f"@{utils.escape_html(developer_entity.username)}"
+                    )
+                    subscribe_markup = [
+                        {
+                            "text": self.strings("subscribe"),
+                            "callback": self._inline__subscribe,
+                            "args": (
+                                developer_entity.id,
+                                functools.partial(loaded_msg, use_subscribe=False),
+                                True,
+                            ),
+                        },
+                        {
+                            "text": self.strings("no_subscribe"),
+                            "callback": self._inline__subscribe,
+                            "args": (
+                                developer,
+                                functools.partial(loaded_msg, use_subscribe=False),
+                                False,
+                            ),
+                        },
+                    ]
+
+            try:
+                is_channel = isinstance(
+                    await self._client.get_entity(developer),
+                    Channel,
+                )
+            except Exception:
+                is_channel = False
+
+            developer = self.strings("developer").format(
+                utils.escape_html(developer)
+                if is_channel
+                else f"<code>{utils.escape_html(developer)}</code>"
+            )
+        else:
+            developer = ""
 
         if any(
             line.replace(" ", "") == "#scope:disable_onload_docs"
             for line in doc.splitlines()
         ):
-            await utils.answer(
-                message,
-                self.strings("loaded").format(
-                    modname.strip(),
-                    version,
-                    utils.ascii_face(),
-                    modhelp,
-                    developer,
-                    self.strings("modlink").format(origin)
-                    if origin != "<string>" and self.config["share_link"]
-                    else "",
-                ),
-            )
+            await utils.answer(message, loaded_msg(), reply_markup=subscribe_markup)
             return
 
         for _name, fun in sorted(
@@ -817,35 +859,29 @@ class LoaderMod(loader.Module):
                     )
 
         try:
-            await utils.answer(
-                message,
-                self.strings("loaded").format(
-                    modname.strip(),
-                    version,
-                    utils.ascii_face(),
-                    modhelp,
-                    developer,
-                    self.strings("modlink").format(origin)
-                    if origin != "<string>" and self.config["share_link"]
-                    else "",
-                ),
-            )
+            await utils.answer(message, loaded_msg(), reply_markup=subscribe_markup)
         except telethon.errors.rpcerrorlist.MediaCaptionTooLongError:
-            await message.reply(
-                self.strings("loaded").format(
-                    modname.strip(),
-                    version,
-                    utils.ascii_face(),
-                    modhelp,
-                    developer,
-                    self.strings("modlink").format(origin)
-                    if origin != "<string>" and self.config["share_link"]
-                    else "",
-                )
-            )
+            await message.reply(loaded_msg(False))
+
+    async def _inline__subscribe(
+        self,
+        call: InlineCall,
+        entity: int,
+        msg: callable,
+        subscribe: bool,
+    ):
+        if not subscribe:
+            self.set("do_not_subscribe", self.get("do_not_subscribe", []) + [entity])
+            await utils.answer(call, msg())
+            await call.answer(self.strings("not_subscribed"))
+            return
+
+        await self._client(JoinChannelRequest(entity))
+        await utils.answer(call, msg())
+        await call.answer(self.strings("subscribed"))
 
     @loader.owner
-    async def unloadmodcmd(self, message: Message) -> None:
+    async def unloadmodcmd(self, message: Message):
         """Unload module by class name"""
         args = utils.get_args_raw(message)
 
@@ -864,14 +900,37 @@ class LoaderMod(loader.Module):
             },
         )
 
-        await utils.answer(
-            message,
-            self.strings("unloaded" if worked else "not_unloaded"),
+        msg = (
+            self.strings("unloaded").format(
+                ", ".join(
+                    [(mod[:-3] if mod.endswith("Mod") else mod) for mod in worked]
+                )
+            )
+            if worked
+            else self.strings("not_unloaded")
         )
 
+        await utils.answer(message, msg)
+
     @loader.owner
-    async def clearmodulescmd(self, message: Message) -> None:
+    async def clearmodulescmd(self, message: Message):
         """Delete all installed modules"""
+        await self.inline.form(
+            self.strings("confirm_clearmodules"),
+            message,
+            reply_markup=[
+                {
+                    "text": self.strings("clearmodules"),
+                    "callback": self._inline__clearmodules,
+                },
+                {
+                    "text": self.strings("cancel"),
+                    "action": "close",
+                },
+            ],
+        )
+
+    async def _inline__clearmodules(self, call: InlineCall):
         self.set("loaded_modules", {})
 
         if "DYNO" not in os.environ:
@@ -880,14 +939,25 @@ class LoaderMod(loader.Module):
 
         self.set("chosen_preset", "none")
 
-        await utils.answer(message, self.strings("all_modules_deleted"))
-
-        await self.allmodules.commands["restart"](
-            await message.reply(f"{self.get_prefix()}restart --force")
-        )
+        await utils.answer(call, self.strings("all_modules_deleted"))
+        await self.lookup("Updater").restart_common(call)
 
     async def _update_modules(self):
         todo = await self._get_modules_to_load()
+
+        # ⚠️⚠️  WARNING!  ⚠️⚠️
+        # If you are a module developer, and you'll try to bypass this protection to
+        # force user join your channel, you will be added to SCAM modules
+        # list and you will be banned from Hikka federation.
+        # Let USER decide, which channel he will follow. Do not be so petty
+        # I hope, you understood me.
+        # Thank you
+
+        if "https://mods.hikariatama.ru/forbid_joins.py" in todo.values():
+            from ..forbid_joins import install_join_forbidder
+
+            install_join_forbidder(self._client)
+
         for mod in todo.values():
             await self.download_and_install(mod)
 
@@ -913,25 +983,14 @@ class LoaderMod(loader.Module):
         self._client = client
         self._fully_loaded = False
 
+        self._links_cache = {}
+
         self.allmodules.add_aliases(self.lookup("settings").get("aliases", {}))
 
         main.hikka.ready.set()
 
-        if not self.get("loaded_modules", False):
-            self.set("loaded_modules", self._db.get(__name__, "loaded_modules", {}))
-            self._db.set(__name__, "loaded_modules", {})
-
-        # Legacy db migration
-        if isinstance(self.get("loaded_modules", {}), list):
-            self.set(
-                "loaded_modules",
-                {
-                    f"Loaded_module_{i}": link
-                    for i, link in enumerate(self.get("loaded_modules", {}))
-                },
-            )
-
         asyncio.ensure_future(self._update_modules())
+        asyncio.ensure_future(self.get_repo_list("full"))
 
     @loader.loop(interval=3, wait_before=True, autostart=True)
     async def _modules_config_autosaver(self):
@@ -944,7 +1003,7 @@ class LoaderMod(loader.Module):
                     continue
 
                 delattr(mod.config._config[option], "_save_marker")
-                self._db.setdefault(mod.__class__.__name__, {},).setdefault(
+                self._db.setdefault(mod.__class__.__name__, {}).setdefault(
                     "__config__", {}
                 )[option] = config.value
                 self._db.save()

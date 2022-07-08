@@ -1,10 +1,12 @@
+import contextlib
+import copy
 import logging
 import time
 from asyncio import Event
-from types import FunctionType
 from typing import List, Optional, Union
 import random
 import grapheme
+import traceback
 
 from aiogram.types import (
     InlineQuery,
@@ -18,8 +20,9 @@ from aiogram.types import (
     InlineQueryResultAudio,
 )
 from telethon.tl.types import Message
+from telethon.errors.rpcerrorlist import ChatSendInlineForbiddenError
 
-from .. import utils
+from .. import utils, main
 from .types import InlineMessage, InlineUnit
 
 logger = logging.getLogger(__name__)
@@ -51,8 +54,8 @@ class Form(InlineUnit):
         always_allow: Optional[List[list]] = None,
         manual_security: Optional[bool] = False,
         disable_security: Optional[bool] = False,
-        ttl: Optional[Union[int, bool]] = False,
-        on_unload: Optional[FunctionType] = None,
+        ttl: Optional[int] = None,
+        on_unload: Optional[callable] = None,
         photo: Optional[str] = None,
         gif: Optional[str] = None,
         file: Optional[str] = None,
@@ -61,54 +64,38 @@ class Form(InlineUnit):
         location: Optional[str] = None,
         audio: Optional[str] = None,
         silent: Optional[bool] = False,
-    ) -> Union[str, bool]:
+    ) -> Union[InlineMessage, bool]:
         """
-        Creates inline form with callback
-        Args:
-            text
-                Content of inline form. HTML markdown supported
-            message
-                Where to send inline. Can be either `Message` or `int`
-            reply_markup
-                List of buttons to insert in markup. List of dicts with
-                keys: text, callback
-            force_me
-                Either this form buttons must be pressed only by owner scope or no
-            always_allow
-                Users, that are allowed to press buttons in addition to previous rules
-            ttl
-                Time, when the form is going to be unloaded. Unload means, that the form
-                buttons with inline queries and callback queries will become unusable, but
-                buttons with type url will still work as usual. Pay attention, that ttl can't
-                be bigger, than default one (1 day) and must be either `int` or `False`
-            on_unload
-                Callback, called when form is unloaded and/or closed. You can clean up trash
-                or perform another needed action
-            manual_security
-                By default, Hikka will try to inherit inline buttons security from the caller (command)
-                If you want to avoid this, pass `manual_security=True`
-            disable_security
-                By default, Hikka will try to inherit inline buttons security from the caller (command)
-                If you want to disable all security checks on this form in particular, pass `disable_security=True`
-            photo
-                Attach a photo to the form. URL must be supplied
-            gif
-                Attach a gif to the form. URL must be supplied
-            file
-                Attach a file to the form. URL must be supplied
-            mime_type
-                Only needed, if `file` field is not empty. Must be either 'application/pdf' or 'application/zip'
-            video
-                Attach a video to the form. URL must be supplied
-            location
-                Attach a map point to the form. List/tuple must be supplied (latitude, longitude)
-                Example: (55.749931, 48.742371)
-                ⚠️ If you pass this parameter, you'll need to pass empty string to `text` ⚠️
-            audio
-                Attach a audio to the form. URL must be supplied
-            silent
-                Whether the form must be sent silently (w/o "Loading inline form..." message)
+        Send inline form to chat
+        :param text: Content of inline form. HTML markdown supported
+        :param message: Where to send inline. Can be either `Message` or `int`
+        :param reply_markup: List of buttons to insert in markup. List of dicts with keys: text, callback
+        :param force_me: Either this form buttons must be pressed only by owner scope or no
+        :param always_allow: Users, that are allowed to press buttons in addition to previous rules
+        :param ttl: Time, when the form is going to be unloaded. Unload means, that the form
+                    buttons with inline queries and callback queries will become unusable, but
+                    buttons with type url will still work as usual. Pay attention, that ttl can't
+                    be bigger, than default one (1 day) and must be either `int` or `False`
+        :param on_unload: Callback, called when form is unloaded and/or closed. You can clean up trash
+                          or perform another needed action
+        :param manual_security: By default, Hikka will try to inherit inline buttons security from the caller (command)
+                                If you want to avoid this, pass `manual_security=True`
+        :param disable_security: By default, Hikka will try to inherit inline buttons security from the caller (command)
+                                 If you want to disable all security checks on this form in particular, pass `disable_security=True`
+        :param photo: Attach a photo to the form. URL must be supplied
+        :param gif: Attach a gif to the form. URL must be supplied
+        :param file: Attach a file to the form. URL must be supplied
+        :param mime_type: Only needed, if `file` field is not empty. Must be either 'application/pdf' or 'application/zip'
+        :param video: Attach a video to the form. URL must be supplied
+        :param location: Attach a map point to the form. List/tuple must be supplied (latitude, longitude)
+                         Example: (55.749931, 48.742371)
+                         ⚠️ If you pass this parameter, you'll need to pass empty string to `text` ⚠️
+        :param audio: Attach a audio to the form. URL must be supplied
+        :param silent: Whether the form must be sent silently (w/o "Loading inline form..." message)
+        :return: If form is sent, returns :obj:`InlineMessage`, otherwise returns `False`
         """
+        with contextlib.suppress(AttributeError):
+            _hikka_client_id_logging_tag = copy.copy(self._client._tg_id)
 
         if reply_markup is None:
             reply_markup = []
@@ -186,33 +173,7 @@ class Form(InlineUnit):
             logger.error("You passed two or more exclusive parameters simultaneously")
             return False
 
-        reply_markup = self._normalize_markup(reply_markup)
-
-        if not all(
-            all(isinstance(button, dict) for button in row) for row in reply_markup
-        ):
-            logger.error("Invalid type for one of the buttons. It must be `dict`")
-            return False
-
-        if not all(
-            all(
-                "url" in button
-                or "callback" in button
-                or "input" in button
-                or "data" in button
-                for button in row
-            )
-            for row in reply_markup
-        ):
-            logger.error(
-                "Invalid button specified. "
-                "Button must contain one of the following fields:\n"
-                "  - `url`\n"
-                "  - `callback`\n"
-                "  - `input`\n"
-                "  - `data`"
-            )
-            return False
+        reply_markup = self._validate_markup(reply_markup) or []
 
         if not isinstance(force_me, bool):
             logger.error("Invalid type for `force_me`")
@@ -226,15 +187,11 @@ class Form(InlineUnit):
             logger.error("Invalid type for `ttl`")
             return False
 
-        if isinstance(ttl, int) and (ttl > self._markup_ttl or ttl < 10):
-            ttl = None
-            logger.debug("Defaulted ttl, because it breaks out of limits")
-
         if isinstance(message, Message) and not silent:
             try:
                 status_message = await (
                     message.edit if message.out else message.respond
-                )("🌘 <b>Loading inline form...</b>")
+                )("🌐 <b>Loading inline form...</b>")
             except Exception:
                 status_message = None
         else:
@@ -267,6 +224,13 @@ class Form(InlineUnit):
             **({"always_allow": always_allow} if always_allow else {}),
         }
 
+        async def answer(msg: str):
+            nonlocal message
+            if isinstance(message, Message):
+                await (message.edit if message.out else message.respond)(msg)
+            else:
+                await self._client.send_message(message, msg)
+
         try:
             q = await self._client.inline_query(self.bot_username, unit_id)
             m = await q[0].click(
@@ -275,18 +239,24 @@ class Form(InlineUnit):
                 if isinstance(message, Message)
                 else None,
             )
-        except Exception:
-            msg = (
-                "🚫 <b>A problem occurred with inline bot "
-                "while processing query. Check logs for "
-                "further info.</b>"
-            )
+        except ChatSendInlineForbiddenError:
+            await answer("🚫 <b>You can't send inline units in this chat</b>")
+        except Exception as e:
+            logger.exception("Can't send form")
+
+            if not self._db.get(main.__name__, "inlinelogs", True):
+                msg = f"<b>🚫 Form invoke failed! More info in logs</b>"
+            else:
+                exc = traceback.format_exc()
+                # Remove `Traceback (most recent call last):`
+                exc = "\n".join(exc.splitlines()[1:])
+                msg = (
+                    f"<b>🚫 Form invoke failed!</b>\n\n"
+                    f"<b>🧾 Logs:</b>\n<code>{exc}</code>"
+                )
 
             del self._units[unit_id]
-            if isinstance(message, Message):
-                await (message.edit if message.out else message.respond)(msg)
-            else:
-                await self._client.send_message(message, msg)
+            await answer(msg)
 
             return False
 
@@ -344,7 +314,9 @@ class Form(InlineUnit):
                                 description=f"⚠️ Do not remove ID! {random.choice(VERIFICATION_EMOJIES)}",
                                 input_message_content=InputTextMessageContent(
                                     "🔄 <b>Transferring value to userbot...</b>\n"
-                                    "<i>This message is gonna be deleted...</i>",
+                                    "<i>This message will be deleted automatically</i>"
+                                    if inline_query.from_user.id == self._me
+                                    else "🔄 <b>Transferring value to userbot...</b>",
                                     "HTML",
                                     disable_web_page_preview=True,
                                 ),

@@ -1,15 +1,16 @@
 function auth(callback) {
     $(".main").fadeOut(500, () => {
-        $(".auth").hide().fadeIn(500);
-        bodymovin.loadAnimation({
-            container: document.getElementById("tg_icon"),
-            renderer: 'canvas',
-            loop: true,
-            autoplay: true,
-            path: 'https://raw.githubusercontent.com/hikariatama/Hikka/master/assets/noface.json',
-            rendererSettings: {
-                clearCanvas: true,
-            }
+        $(".auth").hide().fadeIn(500, () => {
+            bodymovin.loadAnimation({
+                container: document.getElementById("tg_icon"),
+                renderer: 'canvas',
+                loop: true,
+                autoplay: true,
+                path: 'https://raw.githubusercontent.com/hikariatama/Hikka/master/assets/noface.json',
+                rendererSettings: {
+                    clearCanvas: true,
+                }
+            });
         });
         fetch("/web_auth", {
             method: "POST",
@@ -79,10 +80,19 @@ function finish_login() {
     })
     .then(() => {
         window.expanse = true;
-        $(".blur").fadeOut(1500);
-        setTimeout(() => {
-            window.location.href = "/";
-        }, 8000);
+        $(".installation").fadeOut(2000, () => {
+            bodymovin.loadAnimation({
+                container: document.getElementById("installation_icon"),
+                renderer: 'canvas',
+                loop: true,
+                autoplay: true,
+                path: 'https://assets1.lottiefiles.com/animated_stickers/lf_tgs_j7miwfxd.json',
+                rendererSettings: {
+                    clearCanvas: true,
+                }
+            });
+            $(".finish_block").fadeIn(300);
+        });
     })
     .catch(() => {
         error_state();

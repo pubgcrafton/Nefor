@@ -29,6 +29,7 @@ import os
 from telethon.tl.types import Message
 
 from .. import loader, main, translations, utils
+from ..inline.types import InlineCall
 
 
 @loader.tds
@@ -60,6 +61,9 @@ class CoreMod(loader.Module):
         "incorrect_language": "🚫 <b>Incorrect language specified</b>",
         "lang_removed": "✅ <b>Translations reset to default ones</b>",
         "check_pack": "🚫 <b>Invalid pack format in url</b>",
+        "confirm_cleardb": "⚠️ <b>Are you sure, that you want to clear database?</b>",
+        "cleardb_confirm": "🗑 Clear database",
+        "cancel": "🚫 Cancel",
     }
 
     strings_ru = {
@@ -79,7 +83,7 @@ class CoreMod(loader.Module):
         "alias_removed": "✅ <b>Алиас</b> <code>{}</code> <b>удален.",
         "no_alias": "<b>🚫 Алиас</b> <code>{}</code> <b>не существует</b>",
         "db_cleared": "<b>✅ База очищена</b>",
-        "hikka": "🌘 <b>Hikka userbot</b>\n<b>Версия: {}.{}.{}</b>",
+        "hikka": "😺 <b>Nino userbot</b>\n<b>Версия: {}.{}.{}</b>",
         "check_url": "🚫 <b>Укажи правильную ссылку, ведущую на пак с переводом</b>",
         "lang_saved": "{} <b>Язык сохранен!</b>",
         "pack_saved": "✅ <b>Пак перевода сохранен!</b>",
@@ -87,11 +91,11 @@ class CoreMod(loader.Module):
         "lang_removed": "✅ <b>Переводы сброшены</b>",
         "check_pack": "🚫 <b>По ссылке находится неправильный пак</b>",
         "_cmd_doc_hikka": "Показать версию Hikka",
-        "_cmd_doc_blacklist": "Отключить бота где-либо",
-        "_cmd_doc_unblacklist": "Включить бота где-либо",
-        "_cmd_doc_blacklistuser": "Запретить пользователю выполнять все команды",
-        "_cmd_doc_unblacklistuser": "Разрешить пользователю выполнять команды, на которые ему хватает разрешений",
-        "_cmd_doc_setprefix": "Установить префикс",
+        "_cmd_doc_blacklist": "[чат] [модуль] - Отключить бота где-либо",
+        "_cmd_doc_unblacklist": "<чат> - Включить бота где-либо",
+        "_cmd_doc_blacklistuser": "[пользователь] - Запретить пользователю выполнять все команды",
+        "_cmd_doc_unblacklistuser": "[пользователь] - Разрешить пользователю выполнять команды, на которые ему хватает разрешений",
+        "_cmd_doc_setprefix": "<префикс> - Установить префикс",
         "_cmd_doc_aliases": "Показать алиасы",
         "_cmd_doc_addalias": "Установить алиас для команды",
         "_cmd_doc_delalias": "Удалить алиас для команды",
@@ -100,6 +104,9 @@ class CoreMod(loader.Module):
         "_cmd_doc_setlang": "Выбрать предпочитаемый язык перевода\nТребуется перезагрузка после выполнения",
         "_cmd_doc_cleardb": "Сброс до заводских настроек - сброс базы данных",
         "_cls_doc": "Управление базовыми настройками юзербота",
+        "confirm_cleardb": "⚠️ <b>Вы уверены, что хотите сбросить базу данных?</b>",
+        "cleardb_confirm": "🗑 Очистить базу",
+        "cancel": "🚫 Отмена",
     }
 
     async def client_ready(self, client, db):
@@ -131,12 +138,12 @@ class CoreMod(loader.Module):
         module = self.allmodules.get_classname(module)
         return f"{str(chatid)}.{module}" if module else chatid
 
-    async def hikkacmd(self, message: Message):
-        """Get Hikka version"""
+    async def ninocmd(self, message: Message):
+        """Get Nino version"""
         await utils.answer(message, self.strings("hikka").format(*main.__version__))
 
     async def blacklistcmd(self, message: Message):
-        """Blacklist the bot from operating somewhere"""
+        """[chat_id] [module] - Blacklist the bot from operating somewhere"""
         chatid = await self.blacklistcommon(message)
 
         self._db.set(
@@ -148,7 +155,7 @@ class CoreMod(loader.Module):
         await utils.answer(message, self.strings("blacklisted").format(chatid))
 
     async def unblacklistcmd(self, message: Message):
-        """Unblacklist the bot from operating somewhere"""
+        """<chat_id> - Unblacklist the bot from operating somewhere"""
         chatid = await self.blacklistcommon(message)
 
         self._db.set(
@@ -173,12 +180,15 @@ class CoreMod(loader.Module):
             if message.is_private:
                 return message.to_id.user_id
 
-            await utils.answer(message, self.strings("who_to_unblacklist"))
-            return
+            return False
 
     async def blacklistusercmd(self, message: Message):
-        """Prevent this user from running any commands"""
+        """[user_id] - Prevent this user from running any commands"""
         user = await self.getuser(message)
+
+        if not user:
+            await utils.answer(message, self.strings("who_to_unblacklist"))
+            return
 
         self._db.set(
             main.__name__,
@@ -189,8 +199,12 @@ class CoreMod(loader.Module):
         await utils.answer(message, self.strings("user_blacklisted").format(user))
 
     async def unblacklistusercmd(self, message: Message):
-        """Allow this user to run permitted commands"""
+        """[user_id] - Allow this user to run permitted commands"""
         user = await self.getuser(message)
+
+        if not user:
+            await utils.answer(message, self.strings("who_to_unblacklist"))
+            return
 
         self._db.set(
             main.__name__,
@@ -205,7 +219,7 @@ class CoreMod(loader.Module):
 
     @loader.owner
     async def setprefixcmd(self, message: Message):
-        """Sets command prefix"""
+        """<prefix> - Sets command prefix"""
         args = utils.get_args_raw(message)
 
         if not args:
@@ -232,7 +246,9 @@ class CoreMod(loader.Module):
         aliases = self.allmodules.aliases
         string = self.strings("aliases")
 
-        string += "\n".join([f"▫️ <code>{i}</code> &lt;- {y}" for i, y in aliases.items()])
+        string += "\n".join(
+            [f"▫️ <code>{i}</code> &lt;- {y}" for i, y in aliases.items()]
+        )
 
         await utils.answer(message, string)
 
@@ -341,6 +357,22 @@ class CoreMod(loader.Module):
     @loader.owner
     async def cleardbcmd(self, message: Message):
         """Clears the entire database, effectively performing a factory reset"""
+        await self.inline.form(
+            self.strings("confirm_cleardb"),
+            message,
+            reply_markup=[
+                {
+                    "text": self.strings("cleardb_confirm"),
+                    "callback": self._inline__cleardb,
+                },
+                {
+                    "text": self.strings("cancel"),
+                    "action": "close",
+                },
+            ],
+        )
+
+    async def _inline__cleardb(self, call: InlineCall):
         self._db.clear()
         self._db.save()
-        await utils.answer(message, self.strings("db_cleared"))
+        await utils.answer(call, self.strings("db_cleared"))

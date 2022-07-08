@@ -1,11 +1,9 @@
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
+#             █ █ ▀ █▄▀ ▄▀█ █▀█ ▀
+#             █▀█ █ █ █ █▀█ █▀▄ █
 #              © Copyright 2022
+#           https://t.me/hikariatama
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
+# 🔒      Licensed under the GNU AGPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 # scope: inline
@@ -28,13 +26,8 @@ class UpdateNotifierMod(loader.Module):
 
     strings = {
         "name": "UpdateNotifier",
-        "update_required": "❄ <b>Nino Update available!</b>\n\nNew Nino version released.\n🧘 <b>Nino <s>{}</s> -> {}</b>\n\n{}",
+        "update_required": "🥳 <b>Nino Update available!</b>\n\nNew Nino version released.\n🔮 <b>Nino <s>{}</s> -> {}</b>\n\n{}",
         "more": "\n<i><b>🎥 And {} more...</b></i>",
-    }
-
-    strings_ru = {
-        "update_required": "❄ <b>Ура! Вышла новая обнова Nino!</b>\n\nОпубликована новая версия Nino.\n🧘 <b>Commit <s>{}</s> -> {}</b>\n\n{}",
-        "more": "\n<i><b>🎥 И еще {}...</b></i>",
     }
 
     _notified = None
@@ -93,8 +86,8 @@ class UpdateNotifierMod(loader.Module):
 
         self._markup = self.inline.generate_markup(
             [
-                {"text": "▫️ Обновиться", "data": "hikka_update"},
-                {"text": "▪️ Проигнорить", "data": "hikka_upd_ignore"},
+                {"text": "🔄 Update", "data": "hikka_update"},
+                {"text": "🚫 Ignore", "data": "hikka_upd_ignore"},
             ]
         )
 
@@ -102,10 +95,7 @@ class UpdateNotifierMod(loader.Module):
 
     @loader.loop(interval=60)
     async def poller(self):
-        if self.config["disable_notifications"]:
-            return
-
-        if not self.get_changelog():
+        if self.config["disable_notifications"] or not self.get_changelog():
             return
 
         self._pending = self.get_latest()
@@ -122,7 +112,7 @@ class UpdateNotifierMod(loader.Module):
                 self._tg_id,
                 self.strings("update_required").format(
                     self.get_commit()[:6],
-                    f'<a href="https://github.com/AmoreForever/Nino/compare/{self.get_commit()[:12]}...{self.get_latest()[:12]}">{self.get_latest()[:6]}</a>',
+                    f'<a href="https://github.com/hikariatama/Hikka/compare/{self.get_commit()[:12]}...{self.get_latest()[:12]}">{self.get_latest()[:6]}</a>',
                     self.get_changelog(),
                 ),
                 disable_web_page_preview=True,

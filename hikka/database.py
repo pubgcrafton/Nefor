@@ -1,5 +1,3 @@
-
-
 import contextlib
 import json
 import logging
@@ -177,10 +175,10 @@ class Database(dict):
         try:
             self._assets, _ = await utils.asset_channel(
                 self._client,
-                "hikka-assets",
-                "🌆 Your Hikka assets will be stored here",
+                "nino-assets",
+                "🥳 Your Nino assets will be stored here",
                 archive=True,
-                avatar="https://raw.githubusercontent.com/hikariatama/assets/master/hikka-assets.png",
+                avatar="https://raw.githubusercontent.com/NinoZOOM/assets/master/nino-assets.png",
             )
         except ChannelsTooMuchError:
             self._assets = None

@@ -581,7 +581,7 @@ class LoaderMod(loader.Module):
 
             uid = name.replace("%", "%%").replace(".", "%d")
 
-        module_name = f"hikka.modules.{uid}"
+        module_name = nino.modules.{uid}"
 
         doc = geek.compat(doc)
 

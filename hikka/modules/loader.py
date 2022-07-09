@@ -601,7 +601,7 @@ class LoaderMod(loader.Module):
             except ImportError as e:
                 logger.info(
                     "Module loading failed, attemping dependency installation",
-                    exc_info=True,
+                    exc_info=False,
                 )
                 # Let's try to reinstall dependencies
                 try:

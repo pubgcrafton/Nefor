@@ -581,7 +581,7 @@ class LoaderMod(loader.Module):
 
             uid = name.replace("%", "%%").replace(".", "%d")
 
-        module_name = f"nino.modules.{uid}"
+        module_name = f"hikka.modules.{uid}"
 
         doc = geek.compat(doc)
 
@@ -601,7 +601,7 @@ class LoaderMod(loader.Module):
             except ImportError as e:
                 logger.info(
                     "Module loading failed, attemping dependency installation",
-                    exc_info=True,
+                    exc_info=False,
                 )
                 # Let's try to reinstall dependencies
                 try:

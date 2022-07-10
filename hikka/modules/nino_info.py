@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @loader.tds
-class AmoreinfoMod(loader.Module):
+class NinoinfoMod(loader.Module):
     """Show userbot info"""
 
     strings = {

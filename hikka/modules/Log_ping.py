@@ -254,9 +254,8 @@ class TestMod(loader.Module):
                         ],
                         [
                             {
-                                "text": "▫️ Debug",
-                                "callback": self.logscmd,
-                                "args": (False, 10),
+                                "text": "▫️ Ping",
+                                "callback": self.pingcmd,
                             },
                             {
                                 "text": "▫️ All",
@@ -423,7 +422,7 @@ class TestMod(loader.Module):
         except ValueError:
             await utils.answer(message, self.strings("suspend_invalid_time"))
 
-    async def pingcmd(self, message: Message):
+    async def pingcmd(self, message: Message, InlineCall):
         """Test your userbot ping"""
         start = time.perf_counter_ns()
         message = await utils.answer(message, "<code>🐻 Nofin...</code>")

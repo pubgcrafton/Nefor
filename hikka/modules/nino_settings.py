@@ -198,10 +198,10 @@ class NinoSettingsMod(loader.Module):
             if (
                 dialog.name
                 in {
-                    "hikka-logs",
+                    "nino-logs",
                     "hikka-onload",
-                    "hikka-assets",
-                    "hikka-backups",
+                    "nino-assets",
+                    "nino-backups",
                     "hikka-acc-switcher",
                     "silent-tags",
                 }
@@ -209,7 +209,7 @@ class NinoSettingsMod(loader.Module):
                 and (
                     dialog.entity.participants_count == 1
                     or dialog.entity.participants_count == 2
-                    and dialog.name in {"hikka-logs", "silent-tags"}
+                    and dialog.name in {"nino-logs", "silent-tags"}
                 )
                 or (
                     self._client.loader.inline.init_complete
@@ -220,7 +220,7 @@ class NinoSettingsMod(loader.Module):
 
         folders = await self._client(GetDialogFiltersRequest())
 
-        if any(folder.title == "hikka" for folder in folders):
+        if any(folder.title == "nino" for folder in folders):
             folder_id = max(
                 folders,
                 key=lambda x: x.id,

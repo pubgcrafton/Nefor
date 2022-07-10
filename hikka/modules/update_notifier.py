@@ -88,6 +88,7 @@ class UpdateNotifierMod(loader.Module):
             [
                 {"text": "🔄 Update", "data": "hikka_update"},
                 {"text": "🚫 Ignore", "data": "hikka_upd_ignore"},
+                {"text": "🔻 Close", "action": "close"},
             ]
         )
 

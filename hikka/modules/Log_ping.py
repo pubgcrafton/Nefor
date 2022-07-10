@@ -254,9 +254,10 @@ class TestMod(loader.Module):
                         ],
                         [
                             {
-                                "text": "▫️ Ping",
-                                "callback": self.pingcmd,
-                            },
+                                "text": "▫️ Debug",
+                                "callback": self.logscmd,
+                                "args": (False, 10),
+                         },
                             {
                                 "text": "▫️ All",
                                 "callback": self.logscmd,

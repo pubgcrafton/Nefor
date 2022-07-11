@@ -8,7 +8,7 @@
 #
 #              © Copyright 2022
 #
-# https://t.me/linuxil1 | https://t.me/hikariatama
+# https://t.me/the_farkhodov | https://t.me/hikariatama
 #
 # 🔒 Licensed under the GNU GPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @loader.tds
-class NinoInfoMod(loader.Module):
+class NinoinfoMod(loader.Module):
     """Show userbot info"""
 
     strings = {
@@ -89,7 +89,7 @@ class NinoInfoMod(loader.Module):
                 "custom_format",
                 "photo",
                 lambda: self.strings("_cfg_cst_frmt"),
-                validator=loader.validators.Choice(["photo", "video", "audio", "gif"]),
+                validator=loader.validators.Choice(["photo", "video", "gif"]),
             ),
         )
 

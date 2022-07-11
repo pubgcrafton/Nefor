@@ -344,7 +344,13 @@ class HelpMod(loader.Module):
             else ""
         )
 
-        await utils.answer(
-            message,
-            f"{reply}\n{''.join(core_)}{''.join(plain_)}{''.join(inline_)}{no_commands_}{partial_load}",
-        )
+        await self.inline.form(
+                    text = f"{''.join(core_)}{''.join(plain_)}{''.join(inline_)}{no_commands_}{partial_load}",
+                    reply_markup=[
+      [{
+       "text": "🔻 Close", 
+       "action": "close",
+      }],      
+           ],
+                    message=message,
+                )

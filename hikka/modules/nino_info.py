@@ -8,7 +8,7 @@
 #
 #              © Copyright 2022
 #
-# https://t.me/the_farkhodov | https://t.me/hikariatama
+# https://t.me/linuxil1 | https://t.me/hikariatama
 #
 # 🔒 Licensed under the GNU GPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @loader.tds
-class NinoinfoMod(loader.Module):
+class NinoInfoMod(loader.Module):
     """Show userbot info"""
 
     strings = {
@@ -167,6 +167,14 @@ class NinoinfoMod(loader.Module):
                 if self.config["custom_button3"]
                 else None
             )
+            
+        elif int == 4:
+            return (
+                {
+                    "text": "Close 🔻",
+                    "action": "close",
+                }
+            )
 
     @loader.unrestricted
     async def infocmd(self, message: Message):
@@ -174,6 +182,7 @@ class NinoinfoMod(loader.Module):
         m1 = self._get_mark(1)
         m2 = self._get_mark(2)
         m3 = self._get_mark(3)
+        m3 = self._get_mark(4)
         await self.inline.form(
             message=message,
             text=self._render_info(),

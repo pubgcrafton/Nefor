@@ -61,7 +61,7 @@ class HelpMod(loader.Module):
         self.config = loader.ModuleConfig(
             loader.ConfigValue(
                 "core_emoji",
-                "🛠",
+                "▫️",
                 lambda: "Core module bullet",
                 validator=loader.validators.String(length=1),
             ),
@@ -73,7 +73,7 @@ class HelpMod(loader.Module):
             ),
             loader.ConfigValue(
                 "plain_emoji",
-                "🎏",
+                "▪️",
                 lambda: "Plain module bullet",
                 validator=loader.validators.String(length=1),
             ),
@@ -315,10 +315,10 @@ class HelpMod(loader.Module):
 
             for cmd in icommands:
                 if first:
-                    tmp += self.strings("first_cmd_tmpl").format(f"🛸 {cmd}")
+                    tmp += self.strings("first_cmd_tmpl").format(f"🎛 {cmd}")
                     first = False
                 else:
-                    tmp += self.strings("cmd_tmpl").format(f"🛸 {cmd}")
+                    tmp += self.strings("cmd_tmpl").format(f"🎛 {cmd}")
 
             if commands or icommands:
                 tmp += " ]"

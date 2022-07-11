@@ -31,11 +31,11 @@ logger = logging.getLogger(__name__)
 
 
 @loader.tds
-class NinoinfoMod(loader.Module):
+class PrivatinfoMod(loader.Module):
     """Show userbot info"""
 
     strings = {
-        "name": "Info",
+        "name": "NinoInfo",
         "owner": "Владелец",
         "version": "Версия",
         "build": "Сборка",

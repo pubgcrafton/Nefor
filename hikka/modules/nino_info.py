@@ -171,7 +171,7 @@ class NinoInfoMod(loader.Module):
         elif int == 4:
             return (
                 {
-                    "text": "Close 🔻",
+                    "text": "🔻Close",
                     "action": "close",
                 }
             )

@@ -122,7 +122,7 @@ class PrivatinfoMod(loader.Module):
                 me=me,
                 version=version,
                 build=build,
-                upd=upd
+                upd=upd,
                 prefix=prefix,
                 platform=platform,
             )

@@ -117,7 +117,7 @@ class PrivatinfoMod(loader.Module):
         platform = utils.get_named_platform()
 
         return (
-            "<b> </b>\n"
+            "<b>🇺🇿 Nino</b>\n"
             + self.config["custom_message"].format(
                 me=me,
                 version=version,

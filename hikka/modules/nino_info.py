@@ -42,7 +42,7 @@ class PrivatinfoMod(loader.Module):
         "prefix": "Префикс",
         "up-to-date": "🎡 Актуальная версия",
         "update_required": "😕 Требуется обновление</b><code>.update</code><b>",
-        "_cfg_cst_msg": "Custom message for info. May contain {me}, {version}, {build}, {prefix}, {platform} keywords",
+        "_cfg_cst_msg": "Custom message for info. May contain {me}, {version}, {build}, {prefix}, {platform}, {upd} keywords",
         "_cfg_cst_btn": "Custom button for info. Leave empty to remove button",
         "_cfg_cst_bnr": "Custom Banner for info.",
         "_cfg_cst_frmt": "Custom fileformat for Banner info.",
@@ -117,11 +117,12 @@ class PrivatinfoMod(loader.Module):
         platform = utils.get_named_platform()
 
         return (
-            "<b>🇺🇿 Nino</b>\n"
+            "<b> </b>\n"
             + self.config["custom_message"].format(
                 me=me,
                 version=version,
                 build=build,
+                upd=upd
                 prefix=prefix,
                 platform=platform,
             )

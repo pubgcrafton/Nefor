@@ -102,7 +102,7 @@ def get_repo():
         repo = Repo.init(os.path.dirname(utils.get_base_dir()))
         origin = repo.create_remote(
             "origin",
-            "https://github.com/NinoZOOM/Nino",
+            "https://github.com/AmoreForever/Moon",
         )
         origin.fetch()
         repo.create_head("master", origin.refs.master)

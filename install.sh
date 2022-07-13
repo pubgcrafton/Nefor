@@ -69,7 +69,7 @@ if [ ! x"" = x"$DYNO" ] && ! command -v python >/dev/null; then
 	export PATH="/app/.heroku/python/bin:$PATH" # Prefer the bootstrapped python, incl. pip, over the system one.
 fi
 
-if [ -d "Moon/moon" ]; then
+if [ -d "Moon/hikka" ]; then
 	cd Moon || {
 		printf "\rError: Install git package and re-run installer"
 		exit 6

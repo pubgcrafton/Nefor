@@ -1,15 +1,3 @@
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
-#              © Copyright 2022
-#
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
-
-# scope: inline
-
 import inspect
 import logging
 import os
@@ -230,42 +218,43 @@ class TestMod(loader.Module):
                     reply_markup=[
                         [
                             {
-                                "text": "▫️ Critical",
+                                "text": "🌳 Critical",
                                 "callback": self.logscmd,
                                 "args": (False, 50),
                             },
                             {
-                                "text": "▫️ Error",
+                                "text": "🌳 Error",
                                 "callback": self.logscmd,
                                 "args": (False, 40),
                             },
                         ],
                         [
                             {
-                                "text": "▫️ Warning",
+                                "text": "🌳 Warning",
                                 "callback": self.logscmd,
                                 "args": (False, 30),
                             },
                             {
-                                "text": "▫️ Info",
+                                "text": "🌳️ Info",
                                 "callback": self.logscmd,
                                 "args": (False, 20),
                             },
                         ],
                         [
                             {
-                                "text": "▫️ Debug",
+                                "text": "🌳️ Debug",
                                 "callback": self.logscmd,
                                 "args": (False, 10),
                          },
                             {
-                                "text": "▫️ All",
+                                "text": "🌳️ All",
                                 "callback": self.logscmd,
                                 "args": (False, 0),
                             },
                         ],
                         [{"text": "▪️ Cancel", "action": "close"}],
                     ],
+                    photo="https://imgur.com/VZUP7Sf",
                     message=message,
                 ):
                     raise

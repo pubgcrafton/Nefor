@@ -1,15 +1,3 @@
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
-#              © Copyright 2022
-#
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
-# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
-
-# scope: inline
-
 import ast
 import functools
 import logging
@@ -670,6 +658,7 @@ class NinoConfigMod(loader.Module):
                 ],
                 [{"text": self.strings("close_btn"), "action": "close"}],
             ],
+            photo="https://imgur.com/ybLvRyV",
         )
 
     async def inline__global_config(

@@ -17,14 +17,12 @@
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
+#             █ █ ▀ █▄▀ ▄▀█ █▀█ ▀
+#             █▀█ █ █ █ █▀█ █▀▄ █
 #              © Copyright 2022
+#           https://t.me/hikariatama
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
+# 🔒      Licensed under the GNU AGPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 
@@ -107,7 +105,7 @@ def get_config_key(key: str) -> Union[str, bool]:
     """
     try:
         with open(CONFIG_PATH, "r") as f:
-            config = json.loads(f.read())
+            config = json.load(f)
 
         return config.get(key, False)
     except FileNotFoundError:
@@ -124,7 +122,7 @@ def save_config_key(key: str, value: str) -> bool:
     try:
         # Try to open our newly created json config
         with open(CONFIG_PATH, "r") as f:
-            config = json.loads(f.read())
+            config = json.load(f)
     except FileNotFoundError:
         # If it doesn't exist, just default config to none
         # It won't cause problems, bc after new save
@@ -136,7 +134,7 @@ def save_config_key(key: str, value: str) -> bool:
 
     # And save config
     with open(CONFIG_PATH, "w") as f:
-        f.write(json.dumps(config))
+        json.dump(config, f, indent=4)
 
     return True
 
@@ -189,7 +187,6 @@ def parse_arguments() -> dict:
     parser.add_argument("--hosting", "-lh", dest="hosting", action="store_true")
     parser.add_argument("--web-only", dest="web_only", action="store_true")
     parser.add_argument("--no-web", dest="disable_web", action="store_true")
-    parser.add_argument("--no-proxy-pass", dest="proxypass", action="store_false")
     parser.add_argument(
         "--data-root",
         dest="data_root",
@@ -383,7 +380,7 @@ class Hikka:
                 self.loop.run_until_complete(
                     self.web.start(
                         self.arguments.port,
-                        not getattr(self.arguments, "proxypass", False),
+                        proxy_pass=True,
                     )
                 )
                 self.loop.run_until_complete(self._web_banner())
@@ -427,7 +424,7 @@ class Hikka:
             session.save()
         else:
             heroku_config["hikka_session"] = session.save()
-            heroku_app.update_config(heroku_config)
+            heroku_app.update_config(heroku_config.to_dict())
             # Heroku will restart the app after updating config
 
         client.session = session
@@ -467,7 +464,7 @@ class Hikka:
                     connection=self.conn,
                     proxy=self.proxy,
                     connection_retries=None,
-                    device_model="Nino",
+                    device_model="Hikka",
                 )
 
                 client.start(phone)
@@ -484,7 +481,7 @@ class Hikka:
             self.loop.run_until_complete(
                 self.web.start(
                     self.arguments.port,
-                    not getattr(self.arguments, "proxypass", False),
+                    proxy_pass=True,
                 )
             )
             asyncio.ensure_future(self._web_banner())
@@ -587,7 +584,7 @@ class Hikka:
                     else ""
                 )
                 logging.info(
-                    f"😺 Nino {'.'.join(list(map(str, list(__version__))))} started\n"
+                    f"🔆 Nino {'.'.join(list(map(str, list(__version__))))} started\n"
                     f"🔏 GitHub commit SHA: {build[:7]} ({upd})\n"
                     f"{web_url}"
                     f"{_platform}"
@@ -690,10 +687,7 @@ class Hikka:
             )
 
             app = heroku.publish(key, api_token=self.api_token)
-            print(
-                "Installed to heroku successfully!\n"
-                "🎉 App URL: {}".format(app.web_url)
-            )
+            print("Installed to heroku successfully!\n" f"🎉 App URL: {app.web_url}")
 
             # On this point our work is done
             # everything else will be run on Heroku, including

@@ -1,3 +1,11 @@
+#             █ █ ▀ █▄▀ ▄▀█ █▀█ ▀
+#             █▀█ █ █ █ █▀█ █▀▄ █
+#              © Copyright 2022
+#           https://t.me/hikariatama
+#
+# 🔒      Licensed under the GNU AGPLv3
+# 🌐 https://www.gnu.org/licenses/agpl-3.0.html
+
 from telethon import TelegramClient
 from telethon.utils import is_list_like
 
@@ -37,22 +45,25 @@ def install_join_forbidder(client: TelegramClient) -> TelegramClient:
         new_request = []
 
         for item in request:
-            if item.CONSTRUCTOR_ID == 615851205:
-                if next(
-                    frame_info.frame.f_locals["self"]
-                    for frame_info in inspect.stack()
-                    if hasattr(frame_info, "frame")
-                    and hasattr(frame_info.frame, "f_locals")
-                    and isinstance(frame_info.frame.f_locals, dict)
-                    and "self" in frame_info.frame.f_locals
-                    and isinstance(frame_info.frame.f_locals["self"], loader.Module)
-                    and frame_info.frame.f_locals["self"].__class__.__name__
-                    not in {"APIRatelimiterMod", "ForbidJoinMod"}
-                ).__class__.__name__ not in {"HelpMod", "LoaderMod"}:
-                    logger.debug(
-                        f"🎉 I protected you from unintented JoinChannelRequest ({item})!"
-                    )
-                    continue
+            if item.CONSTRUCTOR_ID in {615851205, 1817183516}:
+                try:
+                    if next(
+                        frame_info.frame.f_locals["self"]
+                        for frame_info in inspect.stack()
+                        if hasattr(frame_info, "frame")
+                        and hasattr(frame_info.frame, "f_locals")
+                        and isinstance(frame_info.frame.f_locals, dict)
+                        and "self" in frame_info.frame.f_locals
+                        and isinstance(frame_info.frame.f_locals["self"], loader.Module)
+                        and frame_info.frame.f_locals["self"].__class__.__name__
+                        not in {"APIRatelimiterMod", "ForbidJoinMod"}
+                    ).__class__.__name__ not in {"HelpMod", "LoaderMod"}:
+                        logger.debug(
+                            f"🎉 I protected you from unintented {item.__class__.__name__} ({item})!"
+                        )
+                        continue
+                except StopIteration:
+                    pass
 
             new_request += [item]
 

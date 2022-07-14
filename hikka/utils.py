@@ -16,14 +16,12 @@
 #    You should have received a copy of the GNU Affero General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
+#             █ █ ▀ █▄▀ ▄▀█ █▀█ ▀
+#             █▀█ █ █ █ █▀█ █▀▄ █
 #              © Copyright 2022
+#           https://t.me/hikariatama
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
+# 🔒      Licensed under the GNU AGPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 import asyncio
@@ -87,6 +85,7 @@ from telethon.tl.types import (
 
 from .inline.types import InlineCall, InlineMessage
 
+
 FormattingEntity = Union[
     MessageEntityUnknown,
     MessageEntityMention,
@@ -147,10 +146,7 @@ def get_args_raw(message: Message) -> str:
     if not (message := getattr(message, "message", message)):
         return False
 
-    if len(args := message.split(maxsplit=1)) > 1:
-        return args[1]
-
-    return ""
+    return args[1] if len(args := message.split(maxsplit=1)) > 1 else ""
 
 
 def get_args_split_by(message: Message, separator: str) -> List[str]:
@@ -359,7 +355,10 @@ async def answer(
                 result = await message.client.send_file(
                     message.peer_id,
                     file,
-                    caption="<b>📤 Command output seems to be too long, so it's sent in file.</b>",
+                    caption=(
+                        "<b>📤 Command output seems to be too long, so it's sent in"
+                        " file.</b>"
+                    ),
                 )
 
                 if message.out:
@@ -474,7 +473,7 @@ async def set_avatar(
         )
     )
 
-    with contextlib.suppress(Exception):
+    try:
         await client.delete_messages(
             peer,
             message_ids=[
@@ -485,6 +484,8 @@ async def set_avatar(
                 ).message.id
             ],
         )
+    except Exception:
+        pass
 
     return True
 
@@ -620,10 +621,7 @@ def get_named_platform() -> str:
                 if "Orange" in model:
                     return f"🍊 {model}"
 
-                if "Raspberry" in model:
-                    return f"🍇 {model}"
-
-                return f"❓ {model}"
+                return f"🍇 {model}" if "Raspberry" in model else f"❓ {model}"
     except Exception:
         # In case of weird fs, aka Termux
         pass
@@ -631,25 +629,22 @@ def get_named_platform() -> str:
     is_termux = "com.termux" in os.environ.get("PREFIX", "")
     is_okteto = "OKTETO" in os.environ
     is_docker = "DOCKER" in os.environ
-    is_lavhost = "LAVHOST" in os.environ
     is_heroku = "DYNO" in os.environ
 
     if is_heroku:
-        return "Heroku"
+        return "♓️ Heroku"
 
     if is_docker:
-        return "Docker"
+        return "🐳 Docker"
 
     if is_termux:
-        return "Termux"
+        return "🕶 Termux"
 
     if is_okteto:
-        return "Okteto"
+        return "☁️ Okteto"
 
-    if is_lavhost:
-        return f"lavHost {os.environ['LAVHOST']}"
-
-    return "VDS"
+    is_lavhost = "LAVHOST" in os.environ
+    return f"✌️ lavHost {os.environ['LAVHOST']}" if is_lavhost else "📻 VDS"
 
 
 def uptime() -> int:
@@ -951,7 +946,11 @@ def get_entity_url(
     :return: Link to object or empty string
     """
     return (
-        f"tg://user?id={entity.id}"
+        (
+            f"tg://openmessage?id={entity.id}"
+            if openmessage
+            else f"tg://user?id={entity.id}"
+        )
         if isinstance(entity, User)
         else (
             f"tg://resolve?domain={entity.username}"
@@ -1004,15 +1003,10 @@ def get_kwargs() -> dict:
     # https://stackoverflow.com/a/65927265/19170642
     frame = inspect.currentframe().f_back
     keys, _, _, values = inspect.getargvalues(frame)
-    kwargs = {}
-    for key in keys:
-        if key != "self":
-            kwargs[key] = values[key]
-    return kwargs
+    return {key: values[key] for key in keys if key != "self"}
 
 
 init_ts = time.perf_counter()
-
 
 # GeekTG Compatibility
 def get_git_info():
@@ -1025,7 +1019,7 @@ def get_git_info():
 
     return [
         ver,
-        f"https://github.com/NinoZOOM/Nino/commit/{ver}" if ver else "",
+        f"https://github.com/hikariatama/Hikka/commit/{ver}" if ver else "",
     ]
 
 

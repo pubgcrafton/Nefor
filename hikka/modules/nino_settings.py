@@ -1,11 +1,9 @@
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
+#             █ █ ▀ █▄▀ ▄▀█ █▀█ ▀
+#             █▀█ █ █ █ █▀█ █▀▄ █
 #              © Copyright 2022
+#           https://t.me/hikariatama
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
+# 🔒      Licensed under the GNU AGPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 # scope: inline
@@ -39,7 +37,7 @@ def restart(*argv):
 
 
 @loader.tds
-class NinoSettingsMod(loader.Module):
+class HikkaSettingsMod(loader.Module):
     """Advanced settings for Hikka Userbot"""
 
     strings = {
@@ -94,6 +92,16 @@ class NinoSettingsMod(loader.Module):
         "user_nn_list": "🔰 <b>NoNick is enabled for these users:</b>\n\n{}",
         "chat_nn_list": "🔰 <b>NoNick is enabled for these chats:</b>\n\n{}",
         "nothing": "🔰 <b>Nothing to show...</b>",
+        "privacy_leak": "⚠️ <b>This command gives access to your Hikka web interface. It's not recommended to run it in public group chats. Consider using it in <a href='tg://openmessage?user_id={}'>Saved messages</a>. Type </b><code>{}proxypass force_insecure</code><b> to ignore this warning</b>",
+        "privacy_leak_nowarn": "⚠️ <b>This command gives access to your Hikka web interface. It's not recommended to run it in public group chats. Consider using it in <a href='tg://openmessage?user_id={}'>Saved messages</a>.</b>",
+        "opening_tunnel": "🔁 <b>Opening tunnel to Hikka web interface...</b>",
+        "tunnel_opened": "🎉 <b>Tunnel opened. This link is valid for about 1 hour</b>",
+        "web_btn": "🌍 Web interface",
+        "btn_yes": "🚸 Open anyway",
+        "btn_no": "🔻 Cancel",
+        "lavhost_web": "✌️ <b>This link leads to your Hikka web interface on lavHost</b>\n\n<i>💡 You'll need to authorize using lavHost credentials, specified on registration</i>",
+        "disable_stats": "✅ Anonymous stats allowed",
+        "enable_stats": "🚫 Anonymous stats disabled",
     }
 
     strings_ru = {
@@ -106,16 +114,16 @@ class NinoSettingsMod(loader.Module):
         "no_cmd": "🔰 <b>Укажи команду, для которой надо включить\\выключить NoNick</b>",
         "cmd_nn": "🔰 <b>Состояние NoNick для </b><code>{}</code><b>: {}</b>",
         "cmd404": "🔰 <b>Команда не найдена</b>",
-        "inline_settings": "🌐️ <b>Здесь можно управлять настройками Nink</b>",
-        "confirm_update": "⚡ <b>Подтвердите обновление. Юзербот будет перезагружен</b>",
-        "confirm_restart": "🔅 <b>Подтвердите перезагрузку</b>",
+        "inline_settings": "⚙️ <b>Здесь можно управлять настройками Hikka</b>",
+        "confirm_update": "🧭 <b>Подтвердите обновление. Юзербот будет перезагружен</b>",
+        "confirm_restart": "🔄 <b>Подтвердите перезагрузку</b>",
         "suggest_fs": "✅ Предлагать сохранение модулей",
         "do_not_suggest_fs": "🚫 Предлагать сохранение модулей",
         "use_fs": "✅ Всегда сохранять модули",
         "do_not_use_fs": "🚫 Всегда сохранять модули",
-        "btn_restart": "🔆 Перезагрузка",
-        "btn_update": "⚡ Обновление",
-        "close_menu": "◾ Закрыть меню",
+        "btn_restart": "🔄 Перезагрузка",
+        "btn_update": "🧭 Обновление",
+        "close_menu": "😌 Закрыть меню",
         "download_btn": "✅ Скачивать кнопкой",
         "no_download_btn": "🚫 Скачивать кнопкой",
         "suggest_subscribe": "✅ Предлагать подписку на канал",
@@ -141,10 +149,10 @@ class NinoSettingsMod(loader.Module):
         ),
         "reply_required": "🚫 <b>Ответь на сообщение пользователя, для которого нужно включить NoNick</b>",
         "deauth_confirm": (
-            "⚠️ <b>Это действие полностью удалит Nino с этого аккаунта! Его нельзя отменить</b>\n\n"
-            "<i>- Все чаты, связанные с Nino будут удалены\n"
-            "- Сессия Nino будет сброшена\n"
-            "- Инлайн бот Nino будет удален</i>"
+            "⚠️ <b>Это действие полностью удалит Hikka с этого аккаунта! Его нельзя отменить</b>\n\n"
+            "<i>- Все чаты, связанные с Hikka будут удалены\n"
+            "- Сессия Hikka будет сброшена\n"
+            "- Инлайн бот Hikka будет удален</i>"
         ),
         "deauth_confirm_step2": "⚠️ <b>Ты точно уверен, что хочешь удалить Nino?</b>",
         "deauth_yes": "Я уверен",
@@ -153,13 +161,23 @@ class NinoSettingsMod(loader.Module):
         "deauth_no_3": "Нет",
         "deauth_cancel": "🚫 Отмена",
         "deauth_confirm_btn": "😢 Удалить",
-        "uninstall": "😢 <b>Удаляю nino...</b>",
+        "uninstall": "😢 <b>Удаляю Nino...</b>",
         "uninstalled": "😢 <b>Nino удалена. Веб-интерфейс все еще активен, можно добавить другие аккаунты!</b>",
         "logs_cleared": "🗑 <b>Логи очищены</b>",
         "cmd_nn_list": "🔰 <b>NoNick включен для этих команд:</b>\n\n{}",
         "user_nn_list": "🔰 <b>NoNick включен для этих пользователей:</b>\n\n{}",
         "chat_nn_list": "🔰 <b>NoNick включен для этих чатов:</b>\n\n{}",
         "nothing": "🔰 <b>Нечего показывать...</b>",
+        "privacy_leak": "⚠️ <b>Эта команда дает доступ к веб-интерфейсу Nino. Ее выполнение в публичных чатах является угрозой безопасности. Предпочтительно выполнять ее в <a href='tg://openmessage?user_id={}'>Избранных сообщениях</a>. Выполни </b><code>{}proxypass force_insecure</code><b> чтобы отключить это предупреждение</b>",
+        "privacy_leak_nowarn": "⚠️ <b>Эта команда дает доступ к веб-интерфейсу Hikka. Ее выполнение в публичных чатах является угрозой безопасности. Предпочтительно выполнять ее в <a href='tg://openmessage?user_id={}'>Избранных сообщениях</a>.</b>",
+        "opening_tunnel": "🔁 <b>Открываю тоннель к веб-интерфейсу Nino...</b>",
+        "tunnel_opened": "🎉 <b>Тоннель открыт. Эта ссылка будет активна не более часа</b>",
+        "web_btn": "🌍 Веб-интерфейс",
+        "btn_yes": "🚸 Все равно открыть",
+        "btn_no": "🔻 Закрыть",
+        "lavhost_web": "✌️ <b>По этой ссылке ты попадешь в веб-интерфейс Nino на lavHost</b>\n\n<i>💡 Тебе нужно будет авторизоваться, используя данные, указанные при настройке lavHost</i>",
+        "disable_stats": "✅ Анонимная стата разрешена",
+        "enable_stats": "🚫 Анонимная стата запрещена",
     }
 
     def get_watchers(self) -> tuple:
@@ -276,8 +294,8 @@ class NinoSettingsMod(loader.Module):
             ],
         )
 
-    async def delete_ninocmd(self, message: Message):
-        """Uninstall Nino"""
+    async def uninstall_hikkacmd(self, message: Message):
+        """Uninstall Hikka"""
         await self.inline.form(
             self.strings("deauth_confirm"),
             message,
@@ -444,7 +462,7 @@ class NinoSettingsMod(loader.Module):
             nn = list(set(nn))  # skipcq: PTC-W0018
             await utils.answer(message, self.strings("user_nn").format("on"))
         else:
-            nn = list(set(nn) - set([u]))  # skipcq: PTC-W0018
+            nn = list(set(nn) - {u})
             await utils.answer(message, self.strings("user_nn").format("off"))
 
         self._db.set(main.__name__, "nonickusers", nn)
@@ -469,7 +487,7 @@ class NinoSettingsMod(loader.Module):
                 ),
             )
         else:
-            nn = list(set(nn) - set([chat]))  # skipcq: PTC-W0018
+            nn = list(set(nn) - {chat})
             await utils.answer(
                 message,
                 self.strings("cmd_nn").format(
@@ -503,7 +521,7 @@ class NinoSettingsMod(loader.Module):
                 ),
             )
         else:
-            nn = list(set(nn) - set([args]))  # skipcq: PTC-W0018
+            nn = list(set(nn) - {args})
             await utils.answer(
                 message,
                 self.strings("cmd_nn").format(
@@ -543,10 +561,13 @@ class NinoSettingsMod(loader.Module):
                     main.__name__,
                     "nonickusers",
                     list(
-                        set(self._db.get(main.__name__, "nonickusers", []))
-                        - set([user_id])
+                        (
+                            set(self._db.get(main.__name__, "nonickusers", []))
+                            - {user_id}
+                        )
                     ),
                 )
+
                 logger.warning(
                     f"User {user_id} removed from nonickusers list", exc_info=True
                 )
@@ -576,10 +597,13 @@ class NinoSettingsMod(loader.Module):
                     main.__name__,
                     "nonickchats",
                     list(
-                        set(self._db.get(main.__name__, "nonickchats", []))
-                        - set([chat])
+                        (
+                            set(self._db.get(main.__name__, "nonickchats", []))
+                            - {chat}
+                        )
                     ),
                 )
+
                 logger.warning(f"Chat {chat} removed from nonickchats list")
                 continue
 
@@ -715,25 +739,23 @@ class NinoSettingsMod(loader.Module):
                 ),
             ],
             [
-                (
-                    {
-                        "text": self.strings("suggest_fs"),
-                        "callback": self.inline__setting,
-                        "args": (
-                            "disable_modules_fs",
-                            True,
-                        ),
-                    }
-                    if not self._db.get(main.__name__, "disable_modules_fs", False)
-                    else {
-                        "text": self.strings("do_not_suggest_fs"),
-                        "callback": self.inline__setting,
-                        "args": (
-                            "disable_modules_fs",
-                            False,
-                        ),
-                    }
-                ),
+                {
+                    "text": self.strings("do_not_suggest_fs"),
+                    "callback": self.inline__setting,
+                    "args": (
+                        "disable_modules_fs",
+                        False,
+                    ),
+                }
+                if self._db.get(main.__name__, "disable_modules_fs", False)
+                else {
+                    "text": self.strings("suggest_fs"),
+                    "callback": self.inline__setting,
+                    "args": (
+                        "disable_modules_fs",
+                        True,
+                    ),
+                }
             ],
             [
                 (
@@ -778,6 +800,24 @@ class NinoSettingsMod(loader.Module):
                 ),
             ],
             [
+                (
+                    {
+                        "text": self.strings("disable_stats"),
+                        "callback": self.inline__setting,
+                        "args": ("stats", False),
+                    }
+                    if self._db.get(main.__name__, "stats", True)
+                    else {
+                        "text": self.strings("enable_stats"),
+                        "callback": self.inline__setting,
+                        "args": (
+                            "stats",
+                            True,
+                        ),
+                    }
+                ),
+            ],
+            [
                 {
                     "text": self.strings("btn_restart"),
                     "callback": self.inline__restart,
@@ -799,4 +839,73 @@ class NinoSettingsMod(loader.Module):
             self.strings("inline_settings"),
             message=message,
             reply_markup=self._get_settings_markup(),
+        )
+
+    @loader.owner
+    async def weburlcmd(self, message: Message, force: bool = False):
+        """Opens web tunnel to your Hikka web interface"""
+        if "LAVHOST" in os.environ:
+            form = await self.inline.form(
+                self.strings("lavhost_web"),
+                message=message,
+                reply_markup={
+                    "text": self.strings("web_btn"),
+                    "url": await main.hikka.web.get_url(proxy_pass=False),
+                },
+                gif="https://t.me/hikari_assets/28",
+            )
+            return
+
+        if (
+            not force
+            and not message.is_private
+            and "force_insecure" not in message.raw_text.lower()
+        ):
+            try:
+                if not await self.inline.form(
+                    self.strings("privacy_leak_nowarn").format(self._client._tg_id),
+                    message=message,
+                    reply_markup=[
+                        {
+                            "text": self.strings("btn_yes"),
+                            "callback": self.weburlcmd,
+                            "args": (True,),
+                        },
+                        {"text": self.strings("btn_no"), "action": "close"},
+                    ],
+                    gif="https://i.gifer.com/embedded/download/Z5tS.gif",
+                ):
+                    raise Exception
+            except Exception:
+                await utils.answer(
+                    message,
+                    self.strings("privacy_leak").format(
+                        self._client._tg_id,
+                        self.get_prefix(),
+                    ),
+                )
+
+            return
+
+        if force:
+            form = message
+            await form.edit(
+                self.strings("opening_tunnel"),
+                reply_markup={"text": "🕔 Wait...", "data": "empty"},
+                gif="https://i.gifer.com/origin/e4/e43e1b221fd960003dc27d2f2f1b8ce1.gif",
+            )
+        else:
+            form = await self.inline.form(
+                self.strings("opening_tunnel"),
+                message=message,
+                reply_markup={"text": "🕔 Wait...", "data": "empty"},
+                gif="https://i.gifer.com/origin/e4/e43e1b221fd960003dc27d2f2f1b8ce1.gif",
+            )
+
+        url = await main.hikka.web.get_url(proxy_pass=True)
+
+        await form.edit(
+            self.strings("tunnel_opened"),
+            reply_markup={"text": self.strings("web_btn"), "url": url},
+            gif="https://t.me/hikari_assets/28",
         )

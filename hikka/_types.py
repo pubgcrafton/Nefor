@@ -2,12 +2,34 @@ import ast
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional, Union
-from .inline.types import *
+from .inline.types import *  # skipcq: PYL-W0614
 from . import validators  # skipcq: PY-W2000
+from importlib.abc import SourceLoader
 
 from telethon.tl.types import Message
 
 logger = logging.getLogger(__name__)
+
+
+class StringLoader(SourceLoader):
+    """Load a python module/file from a string"""
+
+    def __init__(self, data: str, origin: str):
+        self.data = data.encode("utf-8") if isinstance(data, str) else data
+        self.origin = origin
+
+    def get_code(self, fullname: str) -> str:
+        return (
+            compile(source, self.origin, "exec", dont_inherit=True)
+            if (source := self.get_source(fullname))
+            else None
+        )
+
+    def get_filename(self, *args, **kwargs) -> str:
+        return self.origin
+
+    def get_data(self, *args, **kwargs) -> bytes:
+        return self.data
 
 
 class Module:
@@ -39,6 +61,10 @@ class Module:
         """
 
 
+class Library:
+    """All external libraries must have a class-inheritant from this class"""
+
+
 class LoadError(Exception):
     """Tells user, why your module can't be loaded, if raised in `client_ready`"""
 
@@ -49,10 +75,43 @@ class LoadError(Exception):
         return self._error
 
 
+class CoreOverwriteError(Exception):
+    """Is being raised when core module or command is overwritten"""
+
+    def __init__(self, module: Optional[str] = None, command: Optional[str] = None):
+        self.type = "module" if module else "command"
+        self.target = module or command
+        super().__init__()
+
+    def __str__(self) -> str:
+        return (
+            f"Module {self.target} will not be overwritten, because it's core"
+            if self.type == "module"
+            else f"Command {self.target} will not be overwritten, because it's core"
+        )
+
+
 class SelfUnload(Exception):
     """Silently unloads module, if raised in `client_ready`"""
 
-    def __init__(self, error_message: Optional[str] = ""):  # skipcq: PYL-W0231
+    def __init__(self, error_message: Optional[str] = ""):
+        super().__init__()
+        self._error = error_message
+
+    def __str__(self) -> str:
+        return self._error
+
+
+class SelfSuspend(Exception):
+    """
+    Silently suspends module, if raised in `client_ready`
+    Commands and watcher will not be registered if raised
+    Module won't be unloaded from db and will be unfreezed after restart, unless
+    the exception is raised again
+    """
+
+    def __init__(self, error_message: Optional[str] = ""):
+        super().__init__()
         self._error = error_message
 
     def __str__(self) -> str:
@@ -64,7 +123,7 @@ class StopLoop(Exception):
 
 
 class ModuleConfig(dict):
-    """Stores config for each mod, that needs them"""
+    """Stores config for modules and apparently libraries"""
 
     def __init__(self, *entries):
         if all(isinstance(entry, ConfigValue) for entry in entries):
@@ -127,6 +186,9 @@ class ModuleConfig(dict):
             return None
 
 
+LibraryConfig = ModuleConfig
+
+
 class _Placeholder:
     """Placeholder to determine if the default value is going to be set"""
 
@@ -182,7 +244,8 @@ class ConfigValue:
                             raise e
 
                         logger.debug(
-                            f"Config value was broken ({value}), so it was reset to {self.default}"
+                            f"Config value was broken ({value}), so it was reset to"
+                            f" {self.default}"
                         )
 
                         value = self.default
@@ -197,7 +260,8 @@ class ConfigValue:
 
                     if self.validator.internal_id in defaults:
                         logger.debug(
-                            f"Config value was None, so it was reset to {defaults[self.validator.internal_id]}"
+                            "Config value was None, so it was reset to"
+                            f" {defaults[self.validator.internal_id]}"
                         )
                         value = defaults[self.validator.internal_id]
 

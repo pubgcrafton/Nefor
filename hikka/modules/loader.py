@@ -16,20 +16,19 @@
 #    You should have received a copy of the GNU Affero General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
+#             █ █ ▀ █▄▀ ▄▀█ █▀█ ▀
+#             █▀█ █ █ █ █▀█ █▀▄ █
 #              © Copyright 2022
+#           https://t.me/hikariatama
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
+# 🔒      Licensed under the GNU AGPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 # scope: inline
 
 import asyncio
 import contextlib
+import copy
 import functools
 import importlib
 import inspect
@@ -49,11 +48,11 @@ import requests
 import telethon
 from telethon.tl.types import Message, Channel
 from telethon.tl.functions.channels import JoinChannelRequest
-from telethon.tl.functions.contacts import SearchRequest
 
 from .. import loader, main, utils
 from ..compat import geek
 from ..inline.types import InlineCall
+from .._types import CoreOverwriteError
 
 logger = logging.getLogger(__name__)
 
@@ -83,13 +82,26 @@ class LoaderMod(loader.Module):
         "provide_module": "<b>⚠️ Provide a module to load</b>",
         "bad_unicode": "<b>🚫 Invalid Unicode formatting in module</b>",
         "load_failed": "<b>🚫 Loading failed. See logs for details</b>",
-        "loaded": "<b>🔭 Module </b><code>{}</code>{}<b> loaded {}</b>{}{}{}{}{}",
+        "loaded": "<b>🎯 Module </b><code>{}</code>{}<b> loaded {}</b>{}{}{}{}{}{}",
         "no_class": "<b>What class needs to be unloaded?</b>",
         "unloaded": "<b>🧹 Module {} unloaded.</b>",
         "not_unloaded": "<b>🚫 Module not unloaded.</b>",
         "requirements_failed": "<b>🚫 Requirements installation failed</b>",
+        "requirements_failed_termux": (
+            "🕶🚫 <b>Requirements installation failed</b>\n<b>The most common reason is"
+            " that Termux doesn't support many libraries. Don't report it as bug, this"
+            " can't be solved.</b>"
+        ),
+        "heroku_install_failed": (
+            "♓️⚠️ <b>This module requires additional libraries to be installed, which"
+            " can't be done on Heroku. Don't report it as bug, this can't be"
+            " solved.</b>"
+        ),
         "requirements_installing": "<b>🔄 Installing requirements:\n\n{}</b>",
-        "requirements_restart": "<b>🔄 Requirements installed, but a restart is required for </b><code>{}</code><b> to apply</b>",
+        "requirements_restart": (
+            "<b>🔄 Requirements installed, but a restart is required for"
+            " </b><code>{}</code><b> to apply</b>"
+        ),
         "all_modules_deleted": "<b>✅ All modules deleted</b>",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 No docs",
@@ -101,20 +113,38 @@ class LoaderMod(loader.Module):
             "<i>Please, remove one of your old bots from @BotFather and "
             "restart userbot to load this module</i>"
         ),
-        "version_incompatible": "🚫 <b>This module requires Hikka {}+\nPlease, update with </b><code>.update</code>",
-        "ffmpeg_required": "🚫 <b>This module requires FFMPEG, which is not installed</b>",
+        "version_incompatible": (
+            "🚫 <b>This module requires Hikka {}+\nPlease, update with"
+            " </b><code>.update</code>"
+        ),
+        "ffmpeg_required": (
+            "🚫 <b>This module requires FFMPEG, which is not installed</b>"
+        ),
         "developer": "\n\n💻 <b>Developer: </b>{}",
-        "module_fs": "💿 <b>Would you like to save this module to filesystem, so it won't get unloaded after restart?</b>",
+        "depends_from": "\n\n📦 <b>Dependencies: </b>\n{}",
+        "by": "by",
+        "module_fs": (
+            "💿 <b>Would you like to save this module to filesystem, so it won't get"
+            " unloaded after restart?</b>"
+        ),
         "save": "💿 Save",
         "no_save": "🚫 Don't save",
         "save_for_all": "💽 Always save to fs",
         "never_save": "🚫 Never save to fs",
-        "will_save_fs": "💽 Now all modules, loaded with .loadmod will be saved to filesystem",
+        "will_save_fs": (
+            "💽 Now all modules, loaded with .loadmod will be saved to filesystem"
+        ),
         "add_repo_config_doc": "Additional repos to load from",
         "share_link_doc": "Share module link in result message of .dlmod",
         "modlink": "\n\n🌍 <b>Link: </b><code>{}</code>",
-        "blob_link": "🚸 <b>Do not use `blob` links to download modules. Consider switching to `raw` instead</b>",
-        "suggest_subscribe": "\n\n💬 <b>This module is made by {}. Do you want to join this channel to support developer?</b>",
+        "blob_link": (
+            "\n🚸 <b>Do not use `blob` links to download modules. Consider switching to"
+            " `raw` instead</b>"
+        ),
+        "suggest_subscribe": (
+            "\n\n💬 <b>This module is made by {}. Do you want to join this channel to"
+            " support developer?</b>"
+        ),
         "subscribe": "💬 Subscribe",
         "no_subscribe": "🚫 Don't subscribe",
         "subscribed": "💬 Subscribed",
@@ -122,42 +152,84 @@ class LoaderMod(loader.Module):
         "confirm_clearmodules": "⚠️ <b>Are you sure you want to clear all modules?</b>",
         "clearmodules": "🗑 Clear modules",
         "cancel": "🚫 Cancel",
+        "overwrite_module": (
+            "🚫 <b>This module attempted to override the core one"
+            " (</b><code>{}</code><b>)</b>\n\n<i>💡 Don't report it as bug. It's a"
+            " security measure to prevent replacing core modules with some junk</i>"
+        ),
+        "overwrite_command": (
+            "🚫 <b>This module attempted to override the core command"
+            " (</b><code>{}{}</code><b>)</b>\n\n<i>💡 Don't report it as bug. It's a"
+            " security measure to prevent replacing core modules' commands with some"
+            " junk</i>"
+        ),
+        "cannot_unload_lib": "🚫 <b>You can't unload library</b>",
     }
 
     strings_ru = {
         "repo_config_doc": "Ссылка для загрузки модулей",
         "add_repo_config_doc": "Дополнительные репозитории",
-        "avail_header": "<b>🔹️ Официальные модули из репозитория</b>",
+        "avail_header": "<b>📲 Официальные модули из репозитория</b>",
         "select_preset": "<b>⚠️ Выбери пресет</b>",
         "no_preset": "<b>🚫 Пресет не найден</b>",
         "preset_loaded": "<b>✅ Пресет загружен</b>",
         "no_module": "<b>🚫 Модуль недоступен в репозитории.</b>",
         "no_file": "<b>🚫 Файл не найден</b>",
         "provide_module": "<b>⚠️ Укажи модуль для загрузки</b>",
-        "bad_unicode": "<b>🤯 Неверная кодировка модуля</b>",
-        "load_failed": "<b>🙄 Загрузка не увенчалась успехом. Смотри логи.</b>",
-        "loaded": "<b>▫️ Module </b><code>{}</code>{}<b> loaded {}</b>{}{}{}{}{}",
+        "bad_unicode": "<b>🚫 Неверная кодировка модуля</b>",
+        "load_failed": "<b>🚫 Загрузка не увенчалась успехом. Смотри логи.</b>",
+        "loaded": "<b>🎯 Модуль </b><code>{}</code>{}<b> загружен {}</b>{}{}{}{}{}{}",
         "no_class": "<b>А что выгружать то?</b>",
         "unloaded": "<b>🧹 Модуль {} выгружен.</b>",
-        "not_unloaded": "<b>▫️ Модуль не выгружен.</b>",
-        "requirements_failed": "<b>▪️ Ошибка установки зависимостей</b>",
-        "requirements_installing": "<b>▫️ Устанавливаю зависимости:\n\n{}</b>",
-        "requirements_restart": "<b>▫️ Зависимости установлены, но нужна перезагрузка для применения </b><code>{}</code>",
+        "not_unloaded": "<b>🚫 Модуль не выгружен.</b>",
+        "requirements_failed": "<b>🚫 Ошибка установки зависимостей</b>",
+        "requirements_failed_termux": (
+            "🕶🚫 <b>Ошибка установки зависимостей</b>\n<b>Наиболее часто возникает из-за"
+            " того, что Termux не поддерживает многие библиотека. Не сообщайте об этом"
+            " как об ошибке, это не может быть исправлено.</b>"
+        ),
+        "heroku_install_failed": (
+            "♓️⚠️ <b>Этому модулю требуются дополнительные библиотека, которые нельзя"
+            " установить на Heroku. Не сообщайте об этом как об ошибке, это не может"
+            " быть исправлено</b>"
+        ),
+        "requirements_installing": "<b>🔄 Устанавливаю зависимости:\n\n{}</b>",
+        "requirements_restart": (
+            "<b>🔄 Зависимости установлены, но нужна перезагрузка для применения"
+            " </b><code>{}</code>"
+        ),
         "all_modules_deleted": "<b>✅ Модули удалены</b>",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 Нет описания",
         "ihandler": "\n🎹 <code>{}</code> {}",
         "undoc_ihandler": "🦥 Нет описания",
-        "version_incompatible": "🚫 <b>Этому модулю требуется Hikka версии {}+\nОбновись с помощью </b><code>.update</code>",
-        "ffmpeg_required": "🚫 <b>Этому модулю требуется FFMPEG, который не установлен</b>",
-        "developer": "\n\n🧑‍🎤 <b>Разработчик: </b>{}",
-        "module_fs": "💿 <b>Ты хочешь сохранить модуль на жесткий диск, чтобы он не выгружался при перезагрузке?</b>",
+        "version_incompatible": (
+            "🚫 <b>Этому модулю требуется Hikka версии {}+\nОбновись с помощью"
+            " </b><code>.update</code>"
+        ),
+        "ffmpeg_required": (
+            "🚫 <b>Этому модулю требуется FFMPEG, который не установлен</b>"
+        ),
+        "developer": "\n\n💻 <b>Разработчик: </b>{}",
+        "depends_from": "\n\n📦 <b>Зависимости: </b>\n{}",
+        "by": "от",
+        "module_fs": (
+            "💿 <b>Ты хочешь сохранить модуль на жесткий диск, чтобы он не выгружался"
+            " при перезагрузке?</b>"
+        ),
         "save": "💿 Сохранить",
         "no_save": "🚫 Не сохранять",
         "save_for_all": "💽 Всегда сохранять",
         "never_save": "🚫 Никогда не сохранять",
-        "will_save_fs": "💽 Теперь все модули, загруженные из файла, будут сохраняться на жесткий диск",
-        "inline_init_failed": "🚫 <b>Этому модулю нужен HikkaInline, а инициализация менеджера инлайна неудачна</b>\n<i>Попробуй удалить одного из старых ботов в @BotFather и перезагрузить юзербота</i>",
+        "will_save_fs": (
+            "💽 Теперь все модули, загруженные из файла, будут сохраняться на жесткий"
+            " диск"
+        ),
+        "inline_init_failed": (
+            "🚫 <b>Этому модулю нужен NinoInline, а инициализация менеджера инлайна"
+            " неудачна</b>\n<i>Попробуй удалить одного из старых ботов в @BotFather и"
+            " перезагрузить юзербота</i>"
+        ),
         "_cmd_doc_dlmod": "Скачивает и устаналвивает модуль из репозитория",
         "_cmd_doc_dlpreset": "Скачивает и устанавливает определенный набор модулей",
         "_cmd_doc_loadmod": "Скачивает и устанавливает модуль из файла",
@@ -166,16 +238,37 @@ class LoaderMod(loader.Module):
         "_cls_doc": "Загружает модули",
         "share_link_doc": "Указывать ссылку на модуль после загрузки через .dlmod",
         "modlink": "\n\n🌍 <b>Ссылка: </b><code>{}</code>",
-        "blob_link": "🚸 <b>Не используй `blob` ссылки для загрузки модулей. Лучше загружать из `raw`</b>",
+        "blob_link": (
+            "\n🚸 <b>Не используй `blob` ссылки для загрузки модулей. Лучше загружать из"
+            " `raw`</b>"
+        ),
         "raw_link": "\n🌍 <b>Ссылка: </b><code>{}</code>",
-        "suggest_subscribe": "\n\n💬 <b>Этот модуль сделан {}. Подписаться на него, чтобы поддержать разработчика?</b>",
+        "suggest_subscribe": (
+            "\n\n💬 <b>Этот модуль сделан {}. Подписаться на него, чтобы поддержать"
+            " разработчика?</b>"
+        ),
         "subscribe": "💬 Подписаться",
         "no_subscribe": "🚫 Не подписываться",
         "subscribed": "💬 Подписался!",
         "unsubscribed": "🚫 Я больше не буду предлагать подписаться на этот канал",
-        "confirm_clearmodules": "⚠️ <b>Вы уверены, что хотите выгрузить все модули?</b>",
+        "confirm_clearmodules": (
+            "⚠️ <b>Вы уверены, что хотите выгрузить все модули?</b>"
+        ),
         "clearmodules": "🗑 Выгрузить модули",
         "cancel": "🚫 Отмена",
+        "overwrite_module": (
+            "🚫 <b>Этот модуль попытался перезаписать встроенный"
+            " (</b><code>{}</code><b>)</b>\n\n<i>💡 Это не ошибка, а мера безопасности,"
+            " требуемая для предотвращения замены встроенных модулей всяким хламом. Не"
+            " сообщайте о ней в support чате</i>"
+        ),
+        "overwrite_command": (
+            "🚫 <b>Этот модуль попытался перезаписать встроенную команду"
+            " (</b><code>{}</code><b>)</b>\n\n<i>💡 Это не ошибка, а мера безопасности,"
+            " требуемая для предотвращения замены команд встроенных модулей всяким"
+            " хламом. Не сообщайте о ней в support чате</i>"
+        ),
+        "cannot_unload_lib": "🚫 <b>Ты не можешь выгрузить библиотеку</b>",
     }
 
     def __init__(self):
@@ -192,9 +285,7 @@ class LoaderMod(loader.Module):
                 [
                     "https://github.com/hikariatama/host/raw/master",
                     "https://github.com/MoriSummerz/ftg-mods/raw/main",
-                    "https://github.com/iamnalinor/FTG-modules/raw/main",
                     "https://gitlab.com/CakesTwix/friendly-userbot-modules/-/raw/master",
-         
                 ],
                 lambda: self.strings("add_repo_config_doc"),
                 validator=loader.validators.Series(validator=loader.validators.Link()),
@@ -217,7 +308,7 @@ class LoaderMod(loader.Module):
         )
 
     @loader.owner
-    async def dmcmd(self, message: Message):
+    async def dlmodcmd(self, message: Message):
         """Downloads and installs a module from the official module repo"""
         if args := utils.get_args(message):
             args = args[0]
@@ -399,7 +490,7 @@ class LoaderMod(loader.Module):
         self,
         call: InlineCall,
         doc: str,
-        path_: Union[str, None],
+        path_: Optional[str],
         mode: str,
     ):
         save = False
@@ -417,7 +508,7 @@ class LoaderMod(loader.Module):
         await self.load_module(doc, call, origin=path_ or "<string>", save_fs=save)
 
     @loader.owner
-    async def lmcmd(self, message: Message):
+    async def loadmodcmd(self, message: Message):
         """Loads the module file"""
         msg = message if message.file else (await message.get_reply_message())
 
@@ -456,7 +547,7 @@ class LoaderMod(loader.Module):
         ):
             if message.file:
                 await message.edit("")
-                message = await message.respond("▫️")
+                message = await message.respond("🌘")
 
             if await self.inline.form(
                 self.strings("module_fs"),
@@ -508,6 +599,35 @@ class LoaderMod(loader.Module):
                 and not self._db.get(main.__name__, "disable_modules_fs", False),
             )
 
+    async def _send_stats(self, url: str, retry: bool = False):
+        """Send anonymous stats to Hikka"""
+        try:
+            if not self.get("token"):
+                self.set(
+                    "token",
+                    (
+                        await self._client.inline_query(
+                            "@hikkamods_bot", "#get_hikka_token"
+                        )
+                    )[0].title,
+                )
+
+            res = await utils.run_sync(
+                requests.post,
+                "https://heta.hikariatama.ru/stats",
+                data={"url": url},
+                headers={"X-Hikka-Token": self.get("token")},
+            )
+
+            if res.status_code == 403:
+                if retry:
+                    return
+
+                self.set("token", None)
+                return await self._send_stats(url, retry=True)
+        except Exception:
+            logger.debug("Failed to send stats", exc_info=True)
+
     async def load_module(
         self,
         doc: str,
@@ -533,7 +653,7 @@ class LoaderMod(loader.Module):
                 await utils.answer(message, self.strings("inline_init_failed"))
             return
 
-        if re.search(r"# ?scope: ?nink_min", doc):
+        if re.search(r"# ?scope: ?nino_min", doc):
             ver = re.search(r"# ?scope: ?nino_min ((\d+\.){2}\d+)", doc).group(1)
             ver_ = tuple(map(int, ver.split(".")))
             if main.__version__ < ver_:
@@ -565,6 +685,8 @@ class LoaderMod(loader.Module):
 
         blob_link = self.strings("blob_link") if blob_link else ""
 
+        url = copy.deepcopy(name)
+
         if name is None:
             try:
                 node = ast.parse(doc)
@@ -585,12 +707,32 @@ class LoaderMod(loader.Module):
 
         doc = geek.compat(doc)
 
+        async def core_overwrite(e: CoreOverwriteError):
+            nonlocal message
+
+            with contextlib.suppress(Exception):
+                self.allmodules.modules.remove(instance)
+
+            if not message:
+                return
+
+            await utils.answer(
+                message,
+                self.strings(f"overwrite_{e.type}").format(
+                    *(e.target,)
+                    if e.type == "module"
+                    else (self.get_prefix(), e.target)
+                ),
+            )
+
         try:
             try:
                 spec = ModuleSpec(
                     module_name,
-                    loader.StringLoader(doc, origin),
-                    origin=origin,
+                    loader.StringLoader(
+                        doc, f"<string {uid}>" if origin == "<string>" else origin
+                    ),
+                    origin=f"<string {uid}>" if origin == "<string>" else origin,
                 )
                 instance = self.allmodules.register_module(
                     spec,
@@ -601,7 +743,7 @@ class LoaderMod(loader.Module):
             except ImportError as e:
                 logger.info(
                     "Module loading failed, attemping dependency installation",
-                    exc_info=False,
+                    exc_info=True,
                 )
                 # Let's try to reinstall dependencies
                 try:
@@ -616,7 +758,8 @@ class LoaderMod(loader.Module):
                     )
                 except TypeError:
                     logger.warning(
-                        "No valid pip packages specified in code, attemping installation from error"
+                        "No valid pip packages specified in code, attemping"
+                        " installation from error"
                     )
                     requirements = [e.name]
 
@@ -627,10 +770,16 @@ class LoaderMod(loader.Module):
 
                 if did_requirements:
                     if message is not None:
-                        await utils.answer(
-                            message,
-                            self.strings("requirements_restart").format(e.name),
-                        )
+                        if "DYNO" in os.environ:
+                            await utils.answer(
+                                message,
+                                self.strings("heroku_install_failed"),
+                            )
+                        else:
+                            await utils.answer(
+                                message,
+                                self.strings("requirements_restart").format(e.name),
+                            )
 
                     return
 
@@ -659,10 +808,16 @@ class LoaderMod(loader.Module):
 
                 if rc != 0:
                     if message is not None:
-                        await utils.answer(
-                            message,
-                            self.strings("requirements_failed"),
-                        )
+                        if "com.termux" in os.environ.get("PREFIX", ""):
+                            await utils.answer(
+                                message,
+                                self.strings("requirements_failed_termux"),
+                            )
+                        else:
+                            await utils.answer(
+                                message,
+                                self.strings("requirements_failed"),
+                            )
 
                     return
 
@@ -679,6 +834,9 @@ class LoaderMod(loader.Module):
                 if message:
                     await utils.answer(message, f"🚫 <b>{utils.escape_html(str(e))}</b>")
                 return
+            except CoreOverwriteError as e:
+                await core_overwrite(e)
+                return
         except BaseException as e:
             logger.exception(f"Loading external module failed due to {e}")
 
@@ -690,7 +848,10 @@ class LoaderMod(loader.Module):
         instance.inline = self.inline
 
         if hasattr(instance, "__version__") and isinstance(instance.__version__, tuple):
-            version = f"<b><i> (v{'.'.join(list(map(str, list(instance.__version__))))})</i></b>"
+            version = (
+                "<b><i>"
+                f" (v{'.'.join(list(map(str, list(instance.__version__))))})</i></b>"
+            )
         else:
             version = ""
 
@@ -720,6 +881,18 @@ class LoaderMod(loader.Module):
                 if message:
                     await utils.answer(message, f"🚫 <b>{utils.escape_html(str(e))}</b>")
                 return
+            except loader.SelfSuspend as e:
+                logging.debug(f"Suspending {instance}, because it raised `SelfSuspend`")
+                if message:
+                    await utils.answer(
+                        message,
+                        "🥶 <b>Module suspended itself\nReason:"
+                        f" {utils.escape_html(str(e))}</b>",
+                    )
+                return
+            except CoreOverwriteError as e:
+                await core_overwrite(e)
+                return
         except Exception as e:
             logger.exception(f"Module threw because {e}")
 
@@ -727,6 +900,18 @@ class LoaderMod(loader.Module):
                 await utils.answer(message, self.strings("load_failed"))
 
             return
+
+        with contextlib.suppress(Exception):
+            if (
+                not any(
+                    line.replace(" ", "") == "#scope:no_stats"
+                    for line in doc.splitlines()
+                )
+                and self._db.get(main.__name__, "stats", True)
+                and url is not None
+                and utils.check_url(url)
+            ):
+                asyncio.ensure_future(self._send_stats(url))
 
         for alias, cmd in self.lookup("settings").get("aliases", {}).items():
             if cmd in instance.commands:
@@ -743,19 +928,35 @@ class LoaderMod(loader.Module):
         modhelp = ""
 
         if instance.__doc__:
-            modhelp += f"<i>\n▫️ {utils.escape_html(inspect.getdoc(instance))}</i>\n"
+            modhelp += f"<i>\nℹ️ {utils.escape_html(inspect.getdoc(instance))}</i>\n"
 
         subscribe = ""
         subscribe_markup = None
 
+        depends_from = []
+        for key in dir(instance):
+            value = getattr(instance, key)
+            if isinstance(value, loader.Library):
+                depends_from.append(
+                    f"▫️ <code>{value.__class__.__name__}</code><b>"
+                    f" {self.strings('by')} </b><code>{value.developer if isinstance(getattr(value, 'developer', None), str) else 'Unknown'}</code>"
+                )
+
+        depends_from = (
+            self.strings("depends_from").format("\n".join(depends_from))
+            if depends_from
+            else ""
+        )
+
         def loaded_msg(use_subscribe: bool = True):
-            nonlocal modname, version, modhelp, developer, origin, subscribe, blob_link
+            nonlocal modname, version, modhelp, developer, origin, subscribe, blob_link, depends_from
             return self.strings("loaded").format(
                 modname.strip(),
                 version,
                 utils.ascii_face(),
                 modhelp,
                 developer if not subscribe or not use_subscribe else "",
+                depends_from,
                 self.strings("modlink").format(origin)
                 if origin != "<string>" and self.config["share_link"]
                 else "",
@@ -891,6 +1092,12 @@ class LoaderMod(loader.Module):
             await utils.answer(message, self.strings("no_class"))
             return
 
+        instance = self.lookup(args)
+
+        if issubclass(instance.__class__, loader.Library):
+            await utils.answer(message, self.strings("cannot_unload_lib"))
+            return
+
         worked = self.allmodules.unload_module(args)
 
         self.set(
@@ -955,30 +1162,42 @@ class LoaderMod(loader.Module):
         # I hope, you understood me.
         # Thank you
 
-        if "https://mods.hikariatama.ru/forbid_joins.py" in todo.values():
+        if any(
+            arg in todo.values()
+            for arg in {
+                "https://mods.hikariatama.ru/forbid_joins.py",
+                "https://heta.hikariatama.ru/hikariatama/ftg/forbid_joins.py",
+                "https://github.com/hikariatama/ftg/raw/master/forbid_joins.py",
+                "https://raw.githubusercontent.com/hikariatama/ftg/master/forbid_joins.py",
+            }
+        ):
             from ..forbid_joins import install_join_forbidder
 
             install_join_forbidder(self._client)
 
-        for mod in todo.values():
-            await self.download_and_install(mod)
+        secure_boot = False
 
-        self._update_modules_in_db()
+        if self._db.get(loader.__name__, "secure_boot", False):
+            self._db.set(loader.__name__, "secure_boot", False)
+            secure_boot = True
+        else:
+            for mod in todo.values():
+                await self.download_and_install(mod)
 
-        aliases = {
-            alias: cmd
-            for alias, cmd in self.lookup("settings").get("aliases", {}).items()
-            if self.allmodules.add_alias(alias, cmd)
-        }
+            self._update_modules_in_db()
 
-        self.lookup("settings").set("aliases", aliases)
+            aliases = {
+                alias: cmd
+                for alias, cmd in self.lookup("settings").get("aliases", {}).items()
+                if self.allmodules.add_alias(alias, cmd)
+            }
+
+            self.lookup("settings").set("aliases", aliases)
 
         self._fully_loaded = True
 
-        try:
-            await self.lookup("Updater").full_restart_complete()
-        except AttributeError:
-            pass
+        with contextlib.suppress(AttributeError):
+            await self.lookup("Updater").full_restart_complete(secure_boot)
 
     async def client_ready(self, client, db):
         self._db = db
@@ -995,7 +1214,7 @@ class LoaderMod(loader.Module):
         asyncio.ensure_future(self.get_repo_list("full"))
 
     @loader.loop(interval=3, wait_before=True, autostart=True)
-    async def _modules_config_autosaver(self):
+    async def _config_autosaver(self):
         for mod in self.allmodules.modules:
             if not hasattr(mod, "config") or not mod.config:
                 continue
@@ -1008,4 +1227,18 @@ class LoaderMod(loader.Module):
                 self._db.setdefault(mod.__class__.__name__, {}).setdefault(
                     "__config__", {}
                 )[option] = config.value
-                self._db.save()
+
+        for lib in self.allmodules.libraries:
+            if not hasattr(lib, "config") or not lib.config:
+                continue
+
+            for option, config in lib.config._config.items():
+                if not hasattr(config, "_save_marker"):
+                    continue
+
+                delattr(lib.config._config[option], "_save_marker")
+                self._db.setdefault(lib.__class__.__name__, {}).setdefault(
+                    "__config__", {}
+                )[option] = config.value
+
+        self._db.save()

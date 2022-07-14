@@ -1,3 +1,5 @@
+
+
 import difflib
 import inspect
 import logging
@@ -20,7 +22,7 @@ class HelpMod(loader.Module):
         "single_mod_header": "🌑 <b>{}</b>:",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 No docs",
-        "all_header": "🌐 <b>{} mods available, {} hidden:</b>",
+        "all_header": "🌘 <b>{} mods available, {} hidden:</b>",
         "mod_tmpl": "\n{} <code>{}</code>",
         "first_cmd_tmpl": ": ( {}",
         "cmd_tmpl": " | {}",
@@ -39,12 +41,12 @@ class HelpMod(loader.Module):
         "single_mod_header": "🌑 <b>{}</b>:",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 Нет описания",
-        "all_header": "👓 <b>Кол-во модулей: {}</b>\n🕶 <b>Скрытые модули: {}</b>",
+        "all_header": "🏕️ <b>{} модулей доступно, {} скрыто:</b>",
         "mod_tmpl": "\n{} <code>{}</code>",
-        "first_cmd_tmpl": ": [ {}",
+        "first_cmd_tmpl": ": ( {}",
         "cmd_tmpl": " | {}",
         "no_mod": "🚫 <b>Укажи модуль(-и), которые нужно скрыть</b>",
-        "hidden_shown": "🌐 <b>{} модулей скрыто, {} модулей показано:</b>\n{}\n{}",
+        "hidden_shown": "🌘 <b>{} модулей скрыто, {} модулей показано:</b>\n{}\n{}",
         "ihandler": "\n🎹 <code>{}</code> {}",
         "undoc_ihandler": "🦥 Нет описания",
         "joined": "🌘 <b>Вступил в</b> <a href='https://t.me/hikka_talks'>чат помощи</a>",
@@ -52,7 +54,7 @@ class HelpMod(loader.Module):
         "_cmd_doc_helphide": "<модуль(-и)> - Скрывает модуль(-и) из помощи\n*Разделяй имена модулей пробелами",
         "_cmd_doc_help": "[модуль] [-f] - Показывает помощь",
         "_cmd_doc_support": "Вступает в чат помощи Hikka",
-        "_cls_doc": "Модуль помощи, сделанный специально для Nino <3",
+        "_cls_doc": "Модуль помощи, сделанный специально для Hikka <3",
         "partial_load": "⚠️ <b>Юзербот еще не загрузился полностью, поэтому показаны не все модули</b>",
         "not_exact": "⚠️ <b>Точного совпадения не нашлось, поэтому было выбрано наиболее подходящее</b>",
     }
@@ -61,19 +63,19 @@ class HelpMod(loader.Module):
         self.config = loader.ModuleConfig(
             loader.ConfigValue(
                 "core_emoji",
-                "▫️",
+                "▪️",
                 lambda: "Core module bullet",
                 validator=loader.validators.String(length=1),
             ),
             loader.ConfigValue(
                 "nino_emoji",
                 "🧑‍🎤",
-                lambda: "Hikka-only module bullet",
+                lambda: "Nino-only module bullet",
                 validator=loader.validators.String(length=1),
             ),
             loader.ConfigValue(
                 "plain_emoji",
-                "▪️",
+                "▫️",
                 lambda: "Plain module bullet",
                 validator=loader.validators.String(length=1),
             ),
@@ -200,7 +202,7 @@ class HelpMod(loader.Module):
             )
 
         await utils.answer(
-            message, f"{reply}\n\n{self.strings('not_exact') if not exact else ''}"
+            message, f"{reply}\n\n{'' if exact else self.strings('not_exact')}"
         )
 
     @loader.unrestricted
@@ -226,10 +228,7 @@ class HelpMod(loader.Module):
 
         hidden = self.get("hide", [])
 
-        reply = self.strings("all_header").format(
-            count,
-            len(hidden) if not force else 0,
-        )
+        reply = self.strings("all_header").format(count, 0 if force else len(hidden))
         shown_warn = False
 
         plain_ = []
@@ -315,13 +314,13 @@ class HelpMod(loader.Module):
 
             for cmd in icommands:
                 if first:
-                    tmp += self.strings("first_cmd_tmpl").format(f"🎛 {cmd}")
+                    tmp += self.strings("first_cmd_tmpl").format(f"🎹 {cmd}")
                     first = False
                 else:
-                    tmp += self.strings("cmd_tmpl").format(f"🎛 {cmd}")
+                    tmp += self.strings("cmd_tmpl").format(f"🎹 {cmd}")
 
             if commands or icommands:
-                tmp += " ]"
+                tmp += " )"
                 if core:
                     core_ += [tmp]
                 elif inline:
@@ -336,13 +335,14 @@ class HelpMod(loader.Module):
         core_.sort(key=lambda x: x.split()[1])
         inline_.sort(key=lambda x: x.split()[1])
         no_commands_.sort(key=lambda x: x.split()[1])
-        no_commands_ = "\n".join(no_commands_) if force else ""
+        no_commands_ = "".join(no_commands_) if force else ""
 
         partial_load = (
-            f"\n\n{self.strings('partial_load')}"
-            if not self.lookup("Loader")._fully_loaded
-            else ""
+            ""
+            if self.lookup("Loader")._fully_loaded
+            else f"\n\n{self.strings('partial_load')}"
         )
+
 
         await utils.answer(
             message,

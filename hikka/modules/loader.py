@@ -308,7 +308,7 @@ class LoaderMod(loader.Module):
         )
 
     @loader.owner
-    async def dlmodcmd(self, message: Message):
+    async def dmcmd(self, message: Message):
         """Downloads and installs a module from the official module repo"""
         if args := utils.get_args(message):
             args = args[0]
@@ -508,7 +508,7 @@ class LoaderMod(loader.Module):
         await self.load_module(doc, call, origin=path_ or "<string>", save_fs=save)
 
     @loader.owner
-    async def loadmodcmd(self, message: Message):
+    async def lmcmd(self, message: Message):
         """Loads the module file"""
         msg = message if message.file else (await message.get_reply_message())
 

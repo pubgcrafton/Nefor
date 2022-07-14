@@ -377,7 +377,7 @@ class UpdaterMod(loader.Module):
 
         folders = await self._client(GetDialogFiltersRequest())
 
-        if any(getattr(folder, "title", None) == "nino" for folder in folders):
+        if any(getattr(folder, "title", None) == "Nino" for folder in folders):
             return
 
         try:
@@ -397,7 +397,7 @@ class UpdaterMod(loader.Module):
                     folder_id,
                     DialogFilter(
                         folder_id,
-                        title="nino",
+                        title="Nino",
                         pinned_peers=(
                             [
                                 await self._client.get_input_entity(

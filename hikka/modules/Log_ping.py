@@ -253,8 +253,7 @@ class TestMod(loader.Module):
                             },
                         ],
                         [{"text": "▪️ Cancel", "action": "close"}],
-                    ],
-                    photo="https://imgur.com/VZUP7Sf",
+                    ],                
                     message=message,
                 ):
                     raise

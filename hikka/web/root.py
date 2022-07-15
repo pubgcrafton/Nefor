@@ -16,14 +16,12 @@
 #    You should have received a copy of the GNU Affero General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
+#             █ █ ▀ █▄▀ ▄▀█ █▀█ ▀
+#             █▀█ █ █ █ █▀█ █▀▄ █
 #              © Copyright 2022
+#           https://t.me/hikariatama
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
+# 🔒      Licensed under the GNU AGPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 import asyncio
@@ -45,7 +43,7 @@ import time
 from .. import utils, main, database, heroku
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from telethon.errors.rpcerrorlist import YouBlockedUserError
+from telethon.errors.rpcerrorlist import YouBlockedUserError, FloodWaitError
 from telethon.tl.functions.contacts import UnblockRequest
 
 DATA_DIR = (
@@ -177,12 +175,14 @@ class Web:
 
     async def set_tg_api(self, request):
         if not self._check_session(request):
-            return web.Response(status=401)
+            return web.Response(status=401, body="Authorization required")
 
         text = await request.text()
 
         if len(text) < 36:
-            return web.Response(status=400)
+            return web.Response(
+                status=400, body="API ID and HASH pair has invalid length"
+            )
 
         api_id = text[32:]
         api_hash = text[:32]
@@ -190,7 +190,9 @@ class Web:
         if any(c not in string.hexdigits for c in api_hash) or any(
             c not in string.digits for c in api_id
         ):
-            return web.Response(status=400)
+            return web.Response(
+                status=400, body="You specified invalid API ID and/or API HASH"
+            )
 
         if "DYNO" not in os.environ:
             # On Heroku it'll be saved later
@@ -206,17 +208,17 @@ class Web:
         )
 
         self.api_set.set()
-        return web.Response()
+        return web.Response(body="ok")
 
     async def send_tg_code(self, request):
         if not self._check_session(request):
-            return web.Response(status=401)
+            return web.Response(status=401, body="Authorization required")
 
         text = await request.text()
         phone = telethon.utils.parse_phone(text)
 
         if not phone:
-            return web.Response(status=400)
+            return web.Response(status=400, body="Invalid phone number")
 
         client = telethon.TelegramClient(
             telethon.sessions.MemorySession(),
@@ -231,9 +233,15 @@ class Web:
         self._pending_client = client
 
         await client.connect()
-        await client.send_code_request(phone)
+        try:
+            await client.send_code_request(phone)
+        except FloodWaitError as e:
+            return web.Response(
+                status=429,
+                body=f"You got FloodWait of {e.seconds}. Please try again later.",
+            )
 
-        return web.Response()
+        return web.Response(body="ok")
 
     async def okteto(self, request):
         if main.get_config_key("okteto_uri"):
@@ -272,20 +280,32 @@ class Web:
             try:
                 await self._pending_client.sign_in(phone, code=code)
             except telethon.errors.SessionPasswordNeededError:
-                return web.Response(status=401)  # Requires 2FA login
+                return web.Response(
+                    status=401,
+                    body="2FA Password required",
+                )  # Requires 2FA login
             except telethon.errors.PhoneCodeExpiredError:
-                return web.Response(status=404)
+                return web.Response(status=404, body="Code expired")
             except telethon.errors.PhoneCodeInvalidError:
-                return web.Response(status=403)
-            except telethon.errors.FloodWaitError:
-                return web.Response(status=421)
+                return web.Response(status=403, body="Invalid code")
+            except telethon.errors.FloodWaitError as e:
+                return web.Response(
+                    status=421,
+                    body=f"You got FloodWait of {e.seconds}. Please try again later.",
+                )
         else:
             try:
                 await self._pending_client.sign_in(phone, password=password)
             except telethon.errors.PasswordHashInvalidError:
-                return web.Response(status=403)  # Invalid 2FA password
-            except telethon.errors.FloodWaitError:
-                return web.Response(status=421)
+                return web.Response(
+                    status=403,
+                    body="Invalid 2FA password",
+                )  # Invalid 2FA password
+            except telethon.errors.FloodWaitError as e:
+                return web.Response(
+                    status=421,
+                    body=f"You got FloodWait of {e.seconds}. Please try again later.",
+                )
 
         # At this step we don't want `main.hikka` to "know" about our client
         # so it doesn't create bot immediately. That's why we only save its session

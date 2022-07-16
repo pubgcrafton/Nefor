@@ -54,7 +54,7 @@ class CoreMod(loader.Module):
         "alias_removed": "✅ <b>Alias</b> <code>{}</code> <b>removed.",
         "no_alias": "<b>🚫 Alias</b> <code>{}</code> <b>does not exist</b>",
         "db_cleared": "<b>✅ Database cleared</b>",
-        "hikka": "🌘 <b>Hikka userbot</b>\n<b>Version: {}.{}.{}</b>",
+        "hikka": "😸 <b>Nino userbot</b>\n<b>Version: {}.{}.{}</b>",
         "check_url": "🚫 <b>You need to specify valid url containing a langpack</b>",
         "lang_saved": "{} <b>Language saved!</b>",
         "pack_saved": "✅ <b>Translate pack saved!</b>",

@@ -16,14 +16,12 @@
 #    You should have received a copy of the GNU Affero General Public License
 #    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# █ █ ▀ █▄▀ ▄▀█ █▀█ ▀    ▄▀█ ▀█▀ ▄▀█ █▀▄▀█ ▄▀█
-# █▀█ █ █ █ █▀█ █▀▄ █ ▄  █▀█  █  █▀█ █ ▀ █ █▀█
-#
+#             █ █ ▀ █▄▀ ▄▀█ █▀█ ▀
+#             █▀█ █ █ █ █▀█ █▀▄ █
 #              © Copyright 2022
+#           https://t.me/hikariatama
 #
-#          https://t.me/hikariatama
-#
-# 🔒 Licensed under the GNU GPLv3
+# 🔒      Licensed under the GNU AGPLv3
 # 🌐 https://www.gnu.org/licenses/agpl-3.0.html
 
 import atexit
@@ -117,7 +115,8 @@ else:
             from telethon.tl.functions.messages import SendReactionRequest  # noqa: F401
         except ImportError:
             print(
-                "⚠️ Warning: Default telethon is used as main one. This can cause errors and enables DAR. Attempting to reinstall telethon-mod..."
+                "⚠️ Warning: Default telethon is used as main one. This can cause"
+                " errors and enables DAR. Attempting to reinstall telethon-mod..."
             )
             subprocess.run(
                 [

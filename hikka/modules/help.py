@@ -1,5 +1,3 @@
-
-
 import difflib
 import inspect
 import logging
@@ -22,7 +20,7 @@ class HelpMod(loader.Module):
         "single_mod_header": "🌑 <b>{}</b>:",
         "single_cmd": "\n▫️ <code>{}{}</code> {}",
         "undoc_cmd": "🦥 No docs",
-        "all_header": "🌘 <b>{} mods available, {} hidden:</b>",
+        "all_header": "🏕️ <b>{} mods available, {} hidden:</b>",
         "mod_tmpl": "\n{} <code>{}</code>",
         "first_cmd_tmpl": ": ( {}",
         "cmd_tmpl": " | {}",

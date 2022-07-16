@@ -88,8 +88,8 @@ class NinoConfigMod(loader.Module):
         "remove_item_btn": "➖ Remove item",
         "show_hidden": "🚸 Show value",
         "hide_value": "🔒 Hide value",
-        "builtin": "🛰 Built-in",
-        "external": "🛸 External",
+        "builtin": "📖 Built-in",
+        "external": "🎏 External",
         "libraries": "🪴 Libraries",
     }
 
@@ -158,8 +158,8 @@ class NinoConfigMod(loader.Module):
         "remove_item_btn": "➖ Удалить элемент",
         "show_hidden": "🚸 Показать значение",
         "hide_value": "🔒 Скрыть значение",
-        "builtin": "🛰 Встроенные",
-        "external": "🛸 Внешние",
+        "builtin": "📖 Встроенные",
+        "external": "🎏 Внешние",
         "libraries": "🪴 Библиотеки",
     }
 

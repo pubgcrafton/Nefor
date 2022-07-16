@@ -51,7 +51,7 @@ class HikkaSettingsMod(loader.Module):
         "no_cmd": "🔰 <b>Please, specify command to toggle NoNick for</b>",
         "cmd_nn": "🔰 <b>NoNick for </b><code>{}</code><b> is now {}</b>",
         "cmd404": "🔰 <b>Command not found</b>",
-        "inline_settings": "⚙️ <b>Here you can configure your Hikka settings</b>",
+        "inline_settings": "⚙️ <b>Here you can configure your Nino settings</b>",
         "confirm_update": "🧭 <b>Please, confirm that you want to update. Your userbot will be restarted</b>",
         "confirm_restart": "🔄 <b>Please, confirm that you want to restart</b>",
         "suggest_fs": "✅ Suggest FS for modules",
@@ -68,15 +68,15 @@ class HikkaSettingsMod(loader.Module):
         "private_not_allowed": "🚫 <b>This command must be executed in chat</b>",
         "nonick_warning": (
             "Warning! You enabled NoNick with default prefix! "
-            "You may get muted in Hikka chats. Change prefix or "
+            "You may get muted in Nino chat. Change prefix or "
             "disable NoNick!"
         ),
         "reply_required": "🚫 <b>Reply to a message of user, which needs to be added to NoNick</b>",
         "deauth_confirm": (
-            "⚠️ <b>This action will fully remove Hikka from this account and can't be reverted!</b>\n\n"
-            "<i>- Hikka chats will be removed\n"
+            "⚠️ <b>This action will fully remove Nino from this account and can't be reverted!</b>\n\n"
+            "<i>- Nino chats will be removed\n"
             "- Session will be terminated and removed\n"
-            "- Hikka inline bot will be removed</i>"
+            "- Nino inline bot will be removed</i>"
         ),
         "deauth_confirm_step2": "⚠️ <b>Are you really sure you want to delete Hikka?</b>",
         "deauth_yes": "I'm sure",
@@ -85,8 +85,8 @@ class HikkaSettingsMod(loader.Module):
         "deauth_no_3": "I'm struggling to answer",
         "deauth_cancel": "🚫 Cancel",
         "deauth_confirm_btn": "😢 Delete",
-        "uninstall": "😢 <b>Uninstalling Hikka...</b>",
-        "uninstalled": "😢 <b>Hikka uninstalled. Web interface is still active, you can add another account</b>",
+        "uninstall": "😢 <b>Uninstalling Nino...</b>",
+        "uninstalled": "😢 <b>Nino uninstalled. Web interface is still active, you can add another account</b>",
         "logs_cleared": "🗑 <b>Logs cleared</b>",
         "cmd_nn_list": "🔰 <b>NoNick is enabled for these commands:</b>\n\n{}",
         "user_nn_list": "🔰 <b>NoNick is enabled for these users:</b>\n\n{}",
@@ -94,7 +94,7 @@ class HikkaSettingsMod(loader.Module):
         "nothing": "🔰 <b>Nothing to show...</b>",
         "privacy_leak": "⚠️ <b>This command gives access to your Hikka web interface. It's not recommended to run it in public group chats. Consider using it in <a href='tg://openmessage?user_id={}'>Saved messages</a>. Type </b><code>{}proxypass force_insecure</code><b> to ignore this warning</b>",
         "privacy_leak_nowarn": "⚠️ <b>This command gives access to your Hikka web interface. It's not recommended to run it in public group chats. Consider using it in <a href='tg://openmessage?user_id={}'>Saved messages</a>.</b>",
-        "opening_tunnel": "🔁 <b>Opening tunnel to Hikka web interface...</b>",
+        "opening_tunnel": "🔁 <b>Opening tunnel to Nino web interface...</b>",
         "tunnel_opened": "🎉 <b>Tunnel opened. This link is valid for about 1 hour</b>",
         "web_btn": "🌍 Web interface",
         "btn_yes": "🚸 Open anyway",

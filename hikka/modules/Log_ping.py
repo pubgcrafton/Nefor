@@ -33,11 +33,11 @@ class TestMod(loader.Module):
         "name": "Tester",
         "set_loglevel": "🚫 <b>Please specify verbosity as an integer or string</b>",
         "no_logs": "ℹ️ <b>You don't have any logs at verbosity {}.</b>",
-        "logs_filename": "hikka-logs.txt",
-        "logs_caption": "🌘 <b>Hikka logs with verbosity </b><code>{}</code>\n\n👩‍🎤 <b>Hikka version: {}.{}.{}</b>{}\n⏱ <b>Uptime: {}</b>\n<b>{}</b>\n\n<b>{}</b>\n\n<b>{} NoNick</b>\n<b>{} Grep</b>\n<b>{} InlineLogs</b>",
+        "logs_filename": "nino-logs.html",
+        "logs_caption": "🪂 <b>Nino logs with verbosity </b><code>{}</code>\n\n👩‍🎤 <b>Nino version: {}.{}.{}</b>{}\n⏱ <b>Uptime: {}</b>\n<b>{}</b>\n\n<b>{}</b>\n\n<b>{} NoNick</b>\n<b>{} Grep</b>\n<b>{} InlineLogs</b>",
         "suspend_invalid_time": "🚫 <b>Invalid time to suspend</b>",
         "suspended": "🥶 <b>Bot suspended for</b> <code>{}</code> <b>seconds</b>",
-        "results_ping": "⏱ <b>Response time:</b> <code>{}</code> <b>ms</b>\n👩‍💼 <b>Uptime: {}</b>",
+        "results_ping": "➥ <b>Response time:</b> <code>{}</code> <b>ms</b>\n➥ <b>Uptime: {}</b>",
         "confidential": "⚠️ <b>Log level </b><code>{}</code><b> may reveal your confidential info, be careful</b>",
         "confidential_text": (
             "⚠️ <b>Log level </b><code>{0}</code><b> may reveal your confidential info, "

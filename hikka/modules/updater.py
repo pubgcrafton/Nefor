@@ -62,7 +62,7 @@ class UpdaterMod(loader.Module):
         "restarting_caption": "🔄 <b>Restarting...</b>",
         "downloading": "🕐 <b>Downloading updates...</b>",
         "installing": "🕐 <b>Installing updates...</b>",
-        "success": "⏳ <b>Restart successful! {}</b>\n<i>But still loading modules...</i>\n<i>Restart took {}s</i>",
+        "success": "🪂 <i>Restart successful! {}</i>\n<i>🚥 But modules are still loading...</i>\n<i>⏳ Reboot took {}s</i>",
         "origin_cfg_doc": "Git origin URL, for where to update from",
         "btn_restart": "🔄 Restart",
         "btn_update": "🧭 Update",
@@ -78,7 +78,7 @@ class UpdaterMod(loader.Module):
         "lavhost_restart": "✌️ <b>Your lavHost is restarting...\n&gt;///&lt;</b>",
         "lavhost_update": "✌️ <b>Your lavHost is updating...\n&gt;///&lt;</b>",
         "heroku_update": "♓️ <b>Deploying new version to Heroku...\nThis might take some time</b>",
-        "full_success": "✅ <b>Userbot is fully loaded! {}</b>\n<i>Full restart took {}s</i>",
+        "full_success": "➥ <b>Userbot is fully loaded! {}</b>\n➥ <b>Full restart took {}s</b>",
         "secure_boot_complete": "🔒 <b>Secure boot completed! {}</b>\n<i>Restart took {}s</i>",
         "heroku_psycopg2_unavailable": "♓️🚫 <b>PostgreSQL database is not available.</b>\n\n<i>Do not report this error to support chat, as it has nothing to do with Hikka. Try changing database to Redis</i>",
     }

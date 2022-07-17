@@ -15,7 +15,7 @@
 
 
 # scope: inline
-# scope: nini_only
+# scope: nino_only
 # scope: nino_min 3.2.1
 
 import logging
@@ -26,6 +26,8 @@ from telethon.utils import get_display_name
 
 from .. import loader, main, utils
 from ..inline.types import InlineQuery
+import datetime
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -35,18 +37,19 @@ class PrivatinfoMod(loader.Module):
     """Show userbot info"""
 
     strings = {
-        "name": "NinoInfo",
+        "name": "MyTimeInfo",
         "owner": "Владелец",
         "version": "Версия",
         "build": "Сборка",
         "prefix": "Префикс",
         "up-to-date": "🎡 Актуальная версия",
         "update_required": "😕 Требуется обновление</b><code>.update</code><b>",
-        "_cfg_cst_msg": "Custom message for info. May contain {me}, {version}, {build}, {prefix}, {platform}, {upd} keywords",
+        "_cfg_cst_msg": "Custom message for info. May contain {me}, {version}, {build}, {prefix}, {platform}, {upd}, {time}, {uptime} keywords",
         "_cfg_cst_btn": "Custom button for info. Leave empty to remove button",
         "_cfg_cst_bnr": "Custom Banner for info.",
         "_cfg_cst_frmt": "Custom fileformat for Banner info.",
         "_cfg_banner": "Set `True` in order to disable an image banner",
+        "_cfg_time": "use 1, -1, -3 etc. to correct the server time on {time}",
     }
 
     def __init__(self):
@@ -91,6 +94,11 @@ class PrivatinfoMod(loader.Module):
                 lambda: self.strings("_cfg_cst_frmt"),
                 validator=loader.validators.Choice(["photo", "video", "gif"]),
             ),
+            loader.ConfigValue(
+                "timezone",  
+                "0",
+                lambda: self.strings("_cfg_time"),
+            ),
         )
 
     async def client_ready(self, client, db):
@@ -115,6 +123,11 @@ class PrivatinfoMod(loader.Module):
         build = f'<a href="https://github.com/hikariatama/Hikka/commit/{ver}">#{ver[:8]}</a>'  # fmt: skip
         prefix = f"«<code>{utils.escape_html(self.get_prefix())}</code>»"
         platform = utils.get_named_platform()
+        uptime= utils.formatted_uptime()
+        offset = datetime.timedelta(hours=self.config["timezone"])
+        tz = datetime.timezone(offset)
+        time1 = datetime.datetime.now(tz)
+        time = time1.strftime("%H:%M:%S")
 
         return (
             "<b> </b>\n"
@@ -125,13 +138,17 @@ class PrivatinfoMod(loader.Module):
                 upd=upd,
                 prefix=prefix,
                 platform=platform,
+                uptime=uptime,
+                time=time,
             )
             if self.config["custom_message"] != "no"
             else (
                 "<b>💢 Nino Userbot </b>\n"
                 f'<b>🧑‍💻 {self.strings("owner")}: </b>{me}\n\n'
                 f"<b>🛰 {self.strings('version')}: </b>{version} {build}\n"
-                f"<b>{upd}</b>\n\n"
+                f"<b>{upd}</b>\n"
+                f"<b>⏳ Uptime: {uptime}</b>\n\n"
+                f"<b>⌚ Time: {time}</b>\n"
                 f"<b>🎷 {self.strings('prefix')}: </b>{prefix}\n"
                 f"<b>📻 Платформа: «{platform}»</b>\n"
                 f"<b>🎗 Improve your self value</b>\n"

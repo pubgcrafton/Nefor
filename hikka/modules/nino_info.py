@@ -37,7 +37,7 @@ class PrivatinfoMod(loader.Module):
     """Show userbot info"""
 
     strings = {
-        "name": "MyTimeInfo",
+        "name": "Ninoinfo",
         "owner": "Владелец",
         "version": "Версия",
         "build": "Сборка",

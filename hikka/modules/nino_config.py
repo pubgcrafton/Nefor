@@ -798,7 +798,7 @@ class NinoConfigMod(loader.Module):
                 ),
                 [{"text": self.strings("close_btn"), "action": "close"}],
             ],
-            photo="https://imgur.com/QlJmDHe",
+            photo="https://github.com/thefarkhodov17/assets/raw/main/config_banner.png",
         )
 
     async def inline__global_config(

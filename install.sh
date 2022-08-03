@@ -69,7 +69,7 @@ if [ ! x"" = x"$DYNO" ] && ! command -v python >/dev/null; then
 	export PATH="/app/.heroku/python/bin:$PATH" # Prefer the bootstrapped python, incl. pip, over the system one.
 fi
 
-if [ -d "Moon/hikka" ]; then
+if [ -d "Nefor/hikka" ]; then
 	cd Moon || {
 		printf "\rError: Install git package and re-run installer"
 		exit 6
@@ -149,13 +149,13 @@ printf "\n\r\033[0;34mCloning repo...\e[0m"
 ##############################################################################
 
 # shellcheck disable=SC2086
-${SUDO_CMD}rm -rf Nino
+${SUDO_CMD}rm -rf Nefor
 # shellcheck disable=SC2086
-runout ${SUDO_CMD}git clone https://github.com/AmoreForever/Moon/ || {
+runout ${SUDO_CMD}git clone https://github.com/gangstersso/Nefor/ || {
 	errorout "Clone failed."
 	exit 3
 }
-cd Moon || {
+cd Nefor || {
 	printf "\r\033[0;33mRun: \033[1;33mpkg install git\033[0;33m and restart installer"
 	exit 7
 }

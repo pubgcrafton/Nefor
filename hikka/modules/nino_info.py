@@ -194,13 +194,23 @@ class PrivatinfoMod(loader.Module):
                 }
             )
 
+        elif int == 5:
+            return (
+                {
+                    "text": "🪂Update",
+                    "data": "hikka_update",
+                }
+            )
+
     @loader.unrestricted
     async def infocmd(self, message: Message):
         """Send userbot info"""
         m1 = self._get_mark(1)
         m2 = self._get_mark(2)
         m3 = self._get_mark(3)
-        m3 = self._get_mark(4)
+        m4 = self._get_mark(4)
+        m5 = self._get_mark(5)
+
         await self.inline.form(
             message=message,
             text=self._render_info(),
@@ -211,6 +221,10 @@ class PrivatinfoMod(loader.Module):
                 [
                     *([m2] if m2 else []),
                     *([m3] if m3 else []),
+                ],
+                [
+                    *([m4] if m4 else []),
+                    *([m5] if m5 else []),
                 ],
             ],
             **{}

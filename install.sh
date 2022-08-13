@@ -35,10 +35,10 @@ clear
 clear
 
 printf "\n\e[1;35;47m                   \e[0m"
-printf "\n\e[1;35;47m █▄░█ █ █▄░█ █▀█   \e[0m"
-printf "\n\e[1;35;47m █░▀█ █ █░▀█ █▄█   \e[0m"
+printf "\n\e[1;35;47m 
+printf "\n\e[1;35;47m █▄░█ █ █▄░█ █▀█ \e[0m"
+printf "\n\e[1;35;47m █░▀█ █ █░▀█ █▄█ \e[0m"
 printf "\n\e[1;35;47m                   \e[0m"
-printf "\n\n\e[3;34;40m Nino юзербот бот нового поколения\e[0m\n\n"
 printf "\n\n\e[3;34;40m Installing...\e[0m\n\n"
 
 ##############################################################################
@@ -69,8 +69,8 @@ if [ ! x"" = x"$DYNO" ] && ! command -v python >/dev/null; then
 	export PATH="/app/.heroku/python/bin:$PATH" # Prefer the bootstrapped python, incl. pip, over the system one.
 fi
 
-if [ -d "Nefor/hikka" ]; then
-	cd Moon || {
+if [ -d "Nefor/nefor" ]; then
+	cd Nefor || {
 		printf "\rError: Install git package and re-run installer"
 		exit 6
 	}
@@ -113,7 +113,7 @@ elif echo "$OSTYPE" | grep -qE '^darwin.*'; then
 	PKGMGR="brew install"
 	PYVER="3"
 else
-	printf "\r\033[1;31mUnrecognised OS.\e[0m Please follow 'Manual installation' at \033[0;94mhttps://github.com/hikariatama/Hikka/#-installation\e[0m"
+	printf "\r\033[1;31mUnrecognised OS.\e[0m Please follow 'Manual installation' at \033[0;94mhttps://github.com/gangstersso/nefor/#-installation\e[0m"
 	exit 1
 fi
 
